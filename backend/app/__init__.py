@@ -1,0 +1,1 @@
+"""AssetX backend application."""

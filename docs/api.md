@@ -1,0 +1,335 @@
+# API reference
+
+Base URL: `http://127.0.0.1:8000/api`
+
+Interactive docs: `http://127.0.0.1:8000/api/docs`
+
+OpenAPI JSON: `http://127.0.0.1:8000/api/openapi.json`
+
+All requests and responses are JSON. There is no authentication; AssetX is intended to run locally or behind your own auth reverse proxy.
+
+## Errors
+
+FastAPI validation errors use:
+
+```json
+{
+  "detail": [
+    {
+      "type": "string_too_short",
+      "loc": ["body", "address"],
+      "msg": "String should have at least 1 character",
+      "input": ""
+    }
+  ]
+}
+```
+
+Business errors use:
+
+```json
+{ "detail": "This address is already tracked on this chain" }
+```
+
+Common status codes: `400` unknown chain, `404` missing resource, `409` duplicate or immutable native network, `422` validation error, `202` job accepted.
+
+## Health and metadata
+
+### `GET /health`
+
+```json
+{ "status": "ok", "time": "2026-11-15T07:22:07Z" }
+```
+
+### `GET /chains`
+
+```json
+{
+  "items": [
+    {
+      "id": "ethereum",
+      "name": "Ethereum",
+      "native_symbol": "ETH",
+      "native_name": "Ether",
+      "native_decimals": 18,
+      "native_coingecko_id": "ethereum",
+      "address_placeholder": "0x...",
+      "address_hint": "EVM address: 0x followed by 40 hex characters",
+      "supports_tokens": true,
+      "token_standard": "ERC-20",
+      "explorer_url": "https://etherscan.io/address/{address}",
+      "provider_count": 4,
+      "accent": "#627EEA"
+    }
+  ]
+}
+```
+
+### `GET /chains/{chain}`
+
+Returns one chain object or `404`.
+
+### `GET /meta`
+
+Returns `name`, `version`, `chains`, `refresh_interval_seconds`, and the seeded symbol list.
+
+## Addresses
+
+### `GET /addresses`
+
+Optional query params: `chain`, `tag`, `q` (matches address or tags).
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "chain": "ethereum",
+      "chain_name": "Ethereum",
+      "accent": "#627EEA",
+      "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+      "tags": ["defi", "whale"],
+      "created_at": "2026-11-15T07:28:35Z",
+      "last_refreshed_at": "2026-11-15T07:29:34Z",
+      "last_refresh_error": null,
+      "last_refresh_warning": null,
+      "last_refresh_provider": "ethereum-rpc.publicnode.com",
+      "total_usd": "10712.43",
+      "total_status": "complete",
+      "unpriced_token_count": 0,
+      "tracked_token_count": 5,
+      "hidden_token_count": 0,
+      "tokens": [
+        {
+          "network_id": 1,
+          "token_id": 1,
+          "symbol": "ETH",
+          "name": "Ether",
+          "chain": "ethereum",
+          "contract_address": null,
+          "decimals": 18,
+          "is_native": true,
+          "raw_balance": "5798969845714110716",
+          "balance": "5.798969845714110716",
+          "price_usd": "1790.328271",
+          "value_usd": "10382.06",
+          "updated_at": "2026-11-15T07:29:34Z"
+        }
+      ],
+      "refresh": null
+    }
+  ],
+  "total": 1
+}
+```
+
+`total_status`:
+
+- `stale` — never refreshed.
+- `partial` — at least one positive balance has no USD price.
+- `complete` — refreshed and all positive balances are priced.
+
+`tokens` on the list endpoint is capped at 3. `GET /addresses/{id}` returns every saved balance. `refresh` is non-null when a job is queued/running.
+
+### `POST /addresses`
+
+```json
+{
+  "chain": "ethereum",
+  "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+  "tags": ["DeFi", "Cold Wallet"]
+}
+```
+
+- `chain` is required and must be one of the five chain ids.
+- The address is validated and normalized per chain; EVM addresses are lowercased.
+- Tags are trimmed, whitespace collapsed, lowercased, de-duplicated, and limited to 10 by default.
+- Returns `201` with the account. Duplicate `(chain, address)` returns `409`.
+
+### `PATCH /addresses/{id}`
+
+```json
+{ "tags": ["whale", "defi"] }
+```
+
+Replaces the tag list. Returns the updated full account.
+
+### `DELETE /addresses/{id}`
+
+`204`. Cascades saved balances and refresh jobs. Does not affect the wallet.
+
+### `POST /addresses/{id}/refresh`
+
+Queues a refresh. Returns `202`:
+
+```json
+{
+  "job": {
+    "job_id": 42,
+    "status": "queued",
+    "created_at": "2026-11-15T07:30:00Z",
+    "deduplicated": false
+  },
+  "status": {
+    "worker_running": true,
+    "queue_size": 1,
+    "interval_seconds": 3,
+    "counts": { "queued": 1, "running": 0, "success": 8, "failed": 0 },
+    "active": []
+  }
+}
+```
+
+If a job is already queued/running for this address, the existing job is returned with `deduplicated: true`.
+
+### `POST /addresses/refresh-all`
+
+Queues every address. Returns `202` with `jobs`, `count`, and current queue `status`. Existing active jobs are deduplicated.
+
+## Refresh queue
+
+### `GET /refresh/status`
+
+```json
+{
+  "worker_running": true,
+  "queue_size": 0,
+  "interval_seconds": 3,
+  "counts": { "queued": 0, "running": 0, "success": 12, "failed": 1 },
+  "active": [
+    {
+      "id": 42,
+      "address_id": 1,
+      "status": "running",
+      "created_at": "2026-11-15T07:30:00Z",
+      "started_at": "2026-11-15T07:30:03Z",
+      "chain": "ethereum",
+      "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+    }
+  ]
+}
+```
+
+`counts` cover all historical jobs in the database. `active` contains only queued/running jobs.
+
+### `GET /refresh/jobs?limit=20`
+
+Returns the newest jobs with `status`, `provider`, `warning`, `error`, `created_at`, `started_at`, `finished_at`, and `duration_ms`.
+
+## Token registry
+
+### `GET /tokens`
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "symbol": "ETH",
+      "name": "Ether",
+      "coingecko_id": "ethereum",
+      "created_at": "2026-11-15T07:20:00Z",
+      "price_usd": "1790.328271",
+      "price_source": "defillama",
+      "price_updated_at": "2026-11-15T07:29:34Z",
+      "networks": [
+        {
+          "id": 1,
+          "chain": "ethereum",
+          "contract_address": null,
+          "decimals": 18,
+          "is_native": true,
+          "enabled": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+### `POST /tokens`
+
+```json
+{
+  "symbol": "LINK",
+  "name": "Chainlink",
+  "coingecko_id": "chainlink"
+}
+```
+
+Creates a registry entry with no networks. `201`; duplicate symbol `409`.
+
+### `PATCH /tokens/{id}`
+
+```json
+{ "name": "Chainlink", "coingecko_id": "chainlink" }
+```
+
+Set `coingecko_id` to `null` to clear it and stop pricing the token.
+
+### `PUT /tokens/{id}/networks/{chain}`
+
+```json
+{
+  "contract_address": "0x514910771AF9Ca656af840dff83E8264EcF986CA",
+  "decimals": 18,
+  "enabled": true
+}
+```
+
+- Ethereum: ERC-20 contract address.
+- Solana: SPL mint address.
+- Cosmos: bank denom (for example `uatom` or `ibc/...`).
+- Bitcoin and Nervos: `400`, generic token contracts are not supported by AssetX.
+- Native networks are immutable (`409`).
+- Changing a contract deletes old balance rows for that network.
+- Setting `enabled` to `false` keeps the row but excludes it from refreshes.
+
+### `DELETE /tokens/{id}/networks/{chain}`
+
+`204`. Native network deletion returns `409`.
+
+### `DELETE /tokens/{id}`
+
+`204`. Native tokens cannot be deleted (`409`). Other tokens cascade their networks, balances, and price cache.
+
+### `POST /tokens/prices/refresh`
+
+Forces a price refresh for every token with a `coingecko_id`.
+
+```json
+{
+  "updated": 9,
+  "source": "defillama",
+  "fetched_at": "2026-11-15T07:29:11Z",
+  "warning": null,
+  "prices": { "ETH": "1790.684582", "BTC": "64336.425494" }
+}
+```
+
+## Examples
+
+PowerShell:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/chains
+
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8000/api/addresses `
+  -ContentType 'application/json' `
+  -Body '{"chain":"bitcoin","address":"1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa","tags":["Genesis"]}'
+
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/addresses/1/refresh
+
+Invoke-RestMethod http://127.0.0.1:8000/api/refresh/status
+```
+
+curl:
+
+```bash
+curl http://127.0.0.1:8000/api/health
+curl -X POST http://127.0.0.1:8000/api/addresses \
+  -H 'Content-Type: application/json' \
+  -d '{"chain":"solana","address":"9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM","tags":["hot wallet"]}'
+curl -X POST http://127.0.0.1:8000/api/addresses/refresh-all
+```
