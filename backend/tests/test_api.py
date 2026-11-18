@@ -36,6 +36,9 @@ def test_health_and_meta(client: TestClient):
     assert stacks["token_standard"] == "SIP-010"
     assert stacks["native_coingecko_id"] == "blockstack"
 
+    meta = client.get("/api/meta").json()
+    assert {"STETH", "EARNETH"} <= set(meta["supported_tokens"])
+
 
 def test_seeded_tokens(client: TestClient):
     tokens = client.get("/api/tokens").json()["items"]
@@ -51,6 +54,8 @@ def test_seeded_tokens(client: TestClient):
         "USDC",
         "PAXG",
         "XAUT",
+        "STETH",
+        "EARNETH",
     }
     usdt = next(token for token in tokens if token["symbol"] == "USDT")
     assert {network["chain"] for network in usdt["networks"]} == {"ethereum", "solana"}
@@ -74,6 +79,30 @@ def test_seeded_tokens(client: TestClient):
         "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token"
     )
     assert sbtc_network["decimals"] == 8
+
+    steth = next(token for token in tokens if token["symbol"] == "STETH")
+    assert steth["name"] == "Lido Staked Ether"
+    assert steth["coingecko_id"] == "staked-ether"
+    assert len(steth["networks"]) == 1
+    steth_network = steth["networks"][0]
+    assert steth_network["chain"] == "ethereum"
+    assert steth_network["is_native"] is False
+    assert steth_network["contract_address"] == (
+        "0xae7ab96520de3a18e5e111b5eaab095312d7fe84"
+    )
+    assert steth_network["decimals"] == 18
+
+    earneth = next(token for token in tokens if token["symbol"] == "EARNETH")
+    assert earneth["name"] == "Lido Earn ETH"
+    assert earneth["coingecko_id"] == "lido-earn-eth"
+    assert len(earneth["networks"]) == 1
+    earneth_network = earneth["networks"][0]
+    assert earneth_network["chain"] == "ethereum"
+    assert earneth_network["is_native"] is False
+    assert earneth_network["contract_address"] == (
+        "0xbbfc8683c8fe8cf73777fede7ab9574935fea0a4"
+    )
+    assert earneth_network["decimals"] == 18
 
 
 def test_create_address_lowercases_tags_and_prevents_duplicates(client: TestClient):
@@ -255,7 +284,7 @@ def test_price_refresh_endpoint(client: TestClient):
     response = client.post("/api/tokens/prices/refresh")
     assert response.status_code == 200
     body = response.json()
-    assert body["updated"] == 11
+    assert body["updated"] == 13
     assert body["source"] == "test"
     usdt = next(token for token in client.get("/api/tokens").json()["items"] if token["symbol"] == "USDT")
     assert usdt["price_usd"] == "1"

@@ -16,7 +16,7 @@ AssetX is a local-first multi-chain portfolio tracker. This directory documents 
 1. An address belongs to exactly one of **Ethereum**, **Solana**, **Bitcoin**, **Nervos**, **Cosmos**, or **Stacks**, selected from a dropdown.
 2. Tags are optional, trimmed, de-duplicated, and always stored lowercase.
 3. Every chain has a native token: ETH, SOL, BTC, CKB, ATOM, STX.
-4. The token registry ships with ETH, SOL, BTC, CKB, ATOM, STX, SBTC, USDT, USDC, PAXG, and XAUT. A token can have a different contract/mint/denom/asset id per chain.
+4. The token registry ships with ETH, SOL, BTC, CKB, ATOM, STX, SBTC, USDT, USDC, PAXG, XAUT, STETH, and EARNETH. A token can have a different contract/mint/denom/asset id per chain.
 5. Refreshes are manual. A queue processes one address at a time with at least **3 seconds between address starts**.
 6. On a successful refresh AssetX writes the latest balance rows, the USD price/value, the endpoint that answered, and the address/chain refresh timestamp. Ethereum refreshes also scan for Uniswap V3 and V4 LP NFT positions, decode their underlying token amounts, and add their value to the account total.
 7. If a public endpoint fails, the next endpoint for that chain is tried in order.

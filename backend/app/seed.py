@@ -8,7 +8,7 @@ from app.utils.time import utcnow_iso
 
 # Bump this when adding a new step to SEED_STEPS. Existing databases receive
 # only the steps they have not seen yet.
-SEED_VERSION = 3
+SEED_VERSION = 4
 
 # Seed data is versioned so an upgrade can add a new built-in token without
 # resurrecting tokens the user deleted from the registry.
@@ -129,10 +129,44 @@ SBTC_TOKENS: list[dict] = [
     },
 ]
 
+# Version 4 adds Lido assets on Ethereum. stETH is a rebasing ERC-20 whose
+# balanceOf() already includes accrued staking rewards. earnETH is the Lido
+# Earn ETH vault share token (the ShareManager ERC-20, not the vault contract):
+# the wallet holds a fixed number of shares and the per-share value tracks the
+# vault's ETH-denominated NAV. Both are ordinary ERC-20 balances for the
+# Ethereum adapter; only their price semantics differ.
+LIDO_TOKENS: list[dict] = [
+    {
+        "symbol": "STETH",
+        "name": "Lido Staked Ether",
+        "coingecko_id": "staked-ether",
+        "networks": [
+            {
+                "chain": "ethereum",
+                "contract": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+                "decimals": 18,
+            }
+        ],
+    },
+    {
+        "symbol": "EARNETH",
+        "name": "Lido Earn ETH",
+        "coingecko_id": "lido-earn-eth",
+        "networks": [
+            {
+                "chain": "ethereum",
+                "contract": "0xbbfc8683c8fe8cf73777fede7ab9574935fea0a4",
+                "decimals": 18,
+            }
+        ],
+    },
+]
+
 SEED_STEPS: dict[int, list[dict]] = {
     1: BUILTIN_TOKENS,
     2: STACKS_TOKENS,
     3: SBTC_TOKENS,
+    4: LIDO_TOKENS,
 }
 
 

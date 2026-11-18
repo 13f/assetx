@@ -14,6 +14,7 @@ Supported chains: **Ethereum, Solana, Bitcoin, Nervos, Cosmos, Stacks**.
 - **Sequential refresh queue** with a 3 second gap between address starts to avoid public endpoint rate limits.
 - **Public RPC failover**: every chain has multiple endpoints; the next endpoint is tried when one fails.
 - **Token registry**: one token can have a different ERC-20 contract, SPL mint, Cosmos bank denom, or SIP-010 asset id on each chain.
+- **Lido assets on Ethereum**: the registry seeds `stETH` and the Lido Earn ETH vault share token `earnETH` with their canonical contracts, so both are read and priced on every Ethereum refresh.
 - **Uniswap V3 and V4 LP NFTs on Ethereum**: a wallet refresh also scans the canonical V3 `NonfungiblePositionManager`, discovers V4 position ids through a public Blockscout index, decodes each position's range and liquidity with concentrated-liquidity math, and prices the underlying tokens in USD.
 - **Tags** on addresses, stored lowercase.
 - **Manual price refresh** through DefiLlama with a CoinGecko fallback and a short cache.
@@ -117,7 +118,7 @@ bun run build
 
 ## Known scope
 
-- Ethereum: native ETH, ERC-20 balances, and Uniswap V3/V4 LP NFT positions. Uniswap V2 LP tokens (ERC-20), generic NFTs, and staked positions held by other contracts are out of scope. V4 token ids are discovered through a public Blockscout NFT index before the position is read on-chain. Uncollected LP fees are not included in the position value.
+- Ethereum: native ETH, ERC-20 balances (including the seeded Lido `stETH` and `earnETH`), and Uniswap V3/V4 LP NFT positions. `stETH` is rebasing, so a refresh snapshots the current balance plus accrued staking rewards; `earnETH` is a vault share token priced per share. Unclaimed Lido Earn shares, pending Lido Earn deposit/redeem queue requests, Uniswap V2 LP tokens (ERC-20), generic NFTs, and staked positions held by other contracts are out of scope. V4 token ids are discovered through a public Blockscout NFT index before the position is read on-chain. Uncollected LP fees are not included in the position value.
 - Solana: native SOL and SPL token accounts, no stake accounts.
 - Bitcoin: native BTC only. BRC-20, Runes and inscription indexers are out of scope.
 - Nervos: native CKB only. Generic UDT tracking is out of scope.

@@ -6,7 +6,7 @@ AssetX tracks six chains. Each address belongs to exactly one chain, and each ch
 
 | Chain | Native | Decimals | Address format | Token support | Default endpoints |
 | --- | --- | --- | --- | --- | --- |
-| Ethereum | ETH | 18 | `0x` + 40 hex | ERC-20 + Uniswap V3/V4 LP NFTs | PublicNode, dRPC, 1RPC, LlamaRPC |
+| Ethereum | ETH | 18 | `0x` + 40 hex | ERC-20 + Lido stETH/earnETH + Uniswap V3/V4 LP NFTs | PublicNode, dRPC, 1RPC, LlamaRPC |
 | Solana | SOL | 9 | 32-byte base58 | SPL token mints | Solana mainnet-beta, PublicNode |
 | Bitcoin | BTC | 8 | Base58Check or bech32/bech32m | Native only | Blockstream, mempool.space |
 | Nervos | CKB | 8 | CKB bech32/bech32m | Native only | mainnet.ckb.dev, mainnet.ckbapp.dev |
@@ -20,6 +20,19 @@ AssetX tracks six chains. Each address belongs to exactly one chain, and each ch
 - Batch order is preserved by JSON-RPC ids. The first endpoint that returns a usable native result wins.
 - If one ERC-20 call fails (bad contract or no code), that token is saved as zero with a warning, while other balances are still persisted.
 - Address validation accepts `0x` + 40 hex. Mixed-case EIP-55 checksums are accepted; addresses are normalized to lowercase.
+
+### Lido assets (stETH and earnETH)
+
+Two Lido assets on Ethereum are seeded and enabled by default. Both are ordinary ERC-20 balances, so the adapter reads them in the same batched `balanceOf` round as the other configured tokens; no extra endpoint or indexer is involved.
+
+| Asset | Contract | Decimals | CoinGecko price id |
+| --- | --- | --- | --- |
+| stETH (Lido Staked Ether) | `0xae7ab96520de3a18e5e111b5eaab095312d7fe84` | 18 | `staked-ether` |
+| earnETH (Lido Earn ETH) | `0xbbfc8683c8fe8cf73777fede7ab9574935fea0a4` | 18 | `lido-earn-eth` |
+
+- `stETH` is a rebasing token. `balanceOf` returns the current stETH amount, including staking rewards accrued up to the refreshed block. Each refresh stores a snapshot, so later rewards appear as a larger balance rather than as a separate rewards line.
+- `earnETH` is the ERC-20 share token issued by the Lido Earn ETH vault's ShareManager (the token contract is `0xbbfc...`; the vault itself is `0x6a37...`). A wallet holds a share count that does not rebase; the per-share value grows with the vault's ETH-denominated NAV. DefiLlama and CoinGecko quote `earnETH` per share, so `balance × price` yields the USD value.
+- Only the share token held by the wallet is tracked. Shares that are still claimable in the ShareManager, pending deposit requests, and redeem requests queued for withdrawal are out of scope. `wstETH` is not seeded; add it from the Tokens page if needed.
 
 ### Uniswap LP positions (V3 and V4 NFTs)
 
@@ -155,7 +168,7 @@ Both hosts are operated by Hiro. They share infrastructure and rate limits; set 
 
 ## Seeded token registry
 
-The database is seeded on first run. Later releases add new built-in tokens through versioned seed steps, so an existing database receives STX and sBTC on upgrade without re-adding tokens you deleted. Native tokens cannot be deleted or have their native network edited.
+The database is seeded on first run. Later releases add new built-in tokens through versioned seed steps, so an existing database receives STX, sBTC, stETH, and earnETH on upgrade without re-adding tokens you deleted. Native tokens cannot be deleted or have their native network edited.
 
 | Symbol | Name | Chain | Identifier | Decimals |
 | --- | --- | --- | --- | --- |
@@ -172,6 +185,8 @@ The database is seeded on first run. Later releases add new built-in tokens thro
 | USDC | USD Coin | Solana | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` | 6 |
 | PAXG | PAX Gold | Ethereum | `0x45804880de22913dafe09f4980848ece6ecbaf78` | 18 |
 | XAUT | Tether Gold | Ethereum | `0x68749665ff8d2d112fa859aa293f07a622782f38` | 6 |
+| STETH | Lido Staked Ether | Ethereum | `0xae7ab96520de3a18e5e111b5eaab095312d7fe84` | 18 |
+| EARNETH | Lido Earn ETH | Ethereum | `0xbbfc8683c8fe8cf73777fede7ab9574935fea0a4` | 18 |
 
 The registry page can add any token and attach one contract/mint/denom/asset-id per supported chain. For example, a `LINK` token can use the Ethereum contract `0x514910771AF9Ca656af840dff83E8264EcF986CA` with 18 decimals.
 
@@ -192,6 +207,8 @@ Prices are resolved by CoinGecko id through DefiLlama, with CoinGecko as fallbac
 | USDC | `usd-coin` |
 | PAXG | `pax-gold` |
 | XAUT | `tether-gold` |
+| STETH | `staked-ether` |
+| EARNETH | `lido-earn-eth` |
 
 A custom token without a CoinGecko id is still tracked; its balance is saved with `price_usd = null` and the card total is marked `partial` if the balance is positive.
 

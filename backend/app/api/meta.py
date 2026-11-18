@@ -42,6 +42,8 @@ def meta(settings: Settings = Depends(get_settings)) -> dict:
             "USDC",
             "PAXG",
             "XAUT",
+            "STETH",
+            "EARNETH",
         ],
     }
 

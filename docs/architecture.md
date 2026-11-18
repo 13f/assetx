@@ -134,6 +134,7 @@ Each adapter owns an ordered provider list from `app/chains/registry.py`. A prov
 
 - Provider order: `https://coins.llama.fi/prices/current/` → CoinGecko `simple/price`.
 - One request covers all unique CoinGecko ids in the refresh.
+- Registry tokens are priced by CoinGecko id. The seeded Lido assets use `staked-ether` (stETH, rebasing) and `lido-earn-eth` (earnETH, a vault share token); the quoted price already includes accrued staking or vault value.
 - LP underlying tokens are priced a second way: `coins.llama.fi/prices/current/ethereum:0x...` → CoinGecko `simple/token_price/ethereum`. They are cached in `contract_prices`, keyed by chain and contract, and are never added to the curated registry.
 - A V4 position's native-ETH side reuses the chain's native token price (ETH) instead of a contract lookup.
 - Cache TTL defaults to 15 seconds. This prevents a "refresh all" batch from repeating the same price request for every address.

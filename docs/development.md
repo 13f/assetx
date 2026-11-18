@@ -75,7 +75,7 @@ The test suite does not call public endpoints. It injects:
 Coverage includes:
 
 - address validation for all six chains, including bech32/bech32m, c32check, and CKB lock decoding,
-- seeded tokens and native symbols,
+- seeded tokens and native symbols, including the Lido stETH and earnETH Ethereum contracts,
 - tag normalization and duplicate protection,
 - token registry CRUD and native-network immutability,
 - queue deduplication and 3-second spacing,
@@ -219,6 +219,7 @@ Set `ASSETX_REFRESH_INTERVAL_SECONDS` in `backend/.env` and restart the API. The
 
 - **`bun: command not found`** — install Bun from <https://bun.sh/> and reopen the terminal.
 - **Frontend shows old UI after `bun run build`** — restart the FastAPI process or hard-refresh the browser; the static directory is mounted at startup.
+- **A Lido balance is missing** — `STETH` and `EARNETH` are seeded as enabled Ethereum networks. If the network was removed or disabled, restore it from the Tokens page and refresh the address. Unclaimed Lido Earn shares and pending deposit/redeem queue requests are not part of the wallet balance.
 - **A card is `partial`** — one or more positive balances or LP positions have no price. Check the token's CoinGecko id or press “Refresh prices” on the Tokens page. LP underlying tokens are priced by contract address and cannot be fixed from the registry; obscure tokens may simply have no price feed.
 - **An LP position is missing** — the scan is capped by `ASSETX_ETHEREUM_LP_MAX_POSITIONS`, and the position must be owned by the wallet (not staked elsewhere). Uniswap V2 LP tokens and generic NFTs are out of scope. For V4, Blockscout must have indexed the position; check `last_refresh_warning` for `Uniswap V4` discovery errors and configure `ASSETX_ETHEREUM_LP_BLOCKSCOUT_APIS` if the public index is rate limited.
 - **Solana token balances are zero with a warning** — the official public RPC is rate limiting indexed requests. Configure a private Solana RPC in `ASSETX_SOLANA_RPCS`.

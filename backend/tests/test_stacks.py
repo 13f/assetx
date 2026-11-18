@@ -270,7 +270,7 @@ def test_seed_upgrade_adds_new_stacks_tokens_without_resurrecting_deleted_tokens
     assert db.fetchone("SELECT id FROM tokens WHERE symbol = 'SBTC'") is not None
     assert db.fetchone("SELECT id FROM tokens WHERE symbol = 'USDT'") is None
     version_row = db.fetchone("SELECT value FROM app_meta WHERE key = 'seed_version'")
-    assert version_row["value"] == "3"
+    assert version_row["value"] == "4"
 
     seed_database(db)
     count = db.fetchone("SELECT COUNT(*) AS total FROM tokens WHERE symbol IN ('STX', 'SBTC')")
