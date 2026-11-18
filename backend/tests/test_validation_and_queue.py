@@ -48,6 +48,26 @@ from app.utils.validation import AddressValidationError, normalize_address
             "ckb1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqdnnw7qkdnnclfkg59uzn8umtfd2kwxceqxwquc4",
             "ckb1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqdnnw7qkdnnclfkg59uzn8umtfd2kwxceqxwquc4",
         ),
+        (
+            "stacks",
+            "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7",
+            "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7",
+        ),
+        (
+            "stacks",
+            "sp2j6zy48gv1ez5v2v5rb9mp66sw86pykknrv9ej7",
+            "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7",
+        ),
+        (
+            "stacks",
+            "SM2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQVX8X0G",
+            "SM2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQVX8X0G",
+        ),
+        (
+            "stacks",
+            "SP000000000000000000002Q6VF78",
+            "SP000000000000000000002Q6VF78",
+        ),
     ],
 )
 def test_valid_addresses(chain: str, address: str, expected: str):
@@ -69,6 +89,10 @@ def test_ckb_short_address_decodes():
         ("bitcoin", "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080"),
         ("cosmos", "cosmos1q4hjnwuat6zuxuplew5rvvw6yw3a4kwrm3e5d"),
         ("nervos", "ckb1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqdnnw7qkdnnclfkg59uzn8umtfd2kwxceqxwquc5"),
+        ("stacks", "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ8"),
+        ("stacks", "ST2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQYAC0RQ"),
+        ("stacks", "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7.my-contract"),
+        ("stacks", "SP"),
     ],
 )
 def test_invalid_addresses(chain: str, address: str):

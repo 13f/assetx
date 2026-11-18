@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     bitcoin_apis: str = ""
     nervos_rpcs: str = ""
     cosmos_apis: str = ""
+    stacks_apis: str = ""
 
     start_worker: bool = True
     log_level: str = "INFO"

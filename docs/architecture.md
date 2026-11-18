@@ -26,7 +26,7 @@ AssetX is intentionally small: a static Vue SPA, a FastAPI process, one SQLite d
                                               public RPC / REST   │              │  DefiLlama /
                                               Ethereum · Solana   │              │  CoinGecko
                                               Bitcoin · Nervos    │              │
-                                              Cosmos              │              │
+                                              Cosmos · Stacks     │              │
                                                                   ▼              ▼
                                                        ┌──────────────────────────────┐
                                                        │ SQLite (WAL)                 │
@@ -48,7 +48,7 @@ AssetX is intentionally small: a static Vue SPA, a FastAPI process, one SQLite d
 | `app/services/prices.py` | Price provider fallback and cache |
 | `app/services/queue.py` | Durable job queue and sequential worker |
 | `app/services/repository.py` | Read models for cards, details, registry |
-| `app/utils/*` | Bech32/base58/CKB validation, amounts, tags, time |
+| `app/utils/*` | Bech32/base58/c32check/CKB validation, amounts, tags, time |
 
 The API routes are synchronous functions for SQLite reads/writes. The refresh worker runs as an asyncio task inside the FastAPI lifespan and calls async chain/price adapters.
 
@@ -122,6 +122,7 @@ Each adapter owns an ordered provider list from `app/chains/registry.py`. A prov
 | Bitcoin | REST `/address/{address}` on Blockstream, then mempool.space. Confirmed plus mempool delta, clamped at zero. |
 | Nervos | Decode CKB bech32/bech32m address to lock script, then `get_cells_capacity` against the indexer RPC. |
 | Cosmos | Paginated `/cosmos/bank/v1beta1/balances/{address}` REST, matched against the native `uatom` denom or configured bank denoms. |
+| Stacks | One `/extended/v1/address/{principal}/balances` request returns native STX plus every SIP-010 asset; configured assets are matched by `contract::asset` id. |
 
 ## Price pipeline
 

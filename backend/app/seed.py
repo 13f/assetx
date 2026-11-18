@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import sqlite3
+
 from app.chains.registry import CHAIN_DEFINITIONS
 from app.db import Database
 from app.utils.time import utcnow_iso
 
-SEED_VERSION = "1"
+# Bump this when adding a new step to SEED_STEPS. Existing databases receive
+# only the steps they have not seen yet.
+SEED_VERSION = 3
 
+# Seed data is versioned so an upgrade can add a new built-in token without
+# resurrecting tokens the user deleted from the registry.
 BUILTIN_TOKENS: list[dict] = [
     {
         "symbol": "ETH",
@@ -97,45 +103,94 @@ BUILTIN_TOKENS: list[dict] = [
     },
 ]
 
+# Version 2 adds Stacks support (native STX).
+STACKS_TOKENS: list[dict] = [
+    {
+        "symbol": "STX",
+        "name": "Stacks",
+        "coingecko_id": "blockstack",
+        "networks": [{"chain": "stacks", "native": True, "decimals": 6}],
+    },
+]
+
+# Version 3 adds the canonical sBTC SIP-010 asset on Stacks.
+SBTC_TOKENS: list[dict] = [
+    {
+        "symbol": "SBTC",
+        "name": "sBTC",
+        "coingecko_id": "sbtc-2",
+        "networks": [
+            {
+                "chain": "stacks",
+                "contract": "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token",
+                "decimals": 8,
+            }
+        ],
+    },
+]
+
+SEED_STEPS: dict[int, list[dict]] = {
+    1: BUILTIN_TOKENS,
+    2: STACKS_TOKENS,
+    3: SBTC_TOKENS,
+}
+
+
+def _current_seed_version(db: Database) -> int:
+    row = db.fetchone("SELECT value FROM app_meta WHERE key = 'seed_version'")
+    if row is None:
+        return 0
+    try:
+        return int(row["value"])
+    except (TypeError, ValueError):
+        return 0
+
+
+def _insert_token(conn: sqlite3.Connection, token: dict, timestamp: str) -> None:
+    conn.execute(
+        "INSERT OR IGNORE INTO tokens(symbol, name, coingecko_id, created_at) VALUES (?, ?, ?, ?)",
+        (token["symbol"], token["name"], token["coingecko_id"], timestamp),
+    )
+    row = conn.execute("SELECT id FROM tokens WHERE symbol = ?", (token["symbol"],)).fetchone()
+    if row is None:
+        return
+    token_id = row["id"]
+    for network in token["networks"]:
+        chain = network["chain"]
+        if chain not in CHAIN_DEFINITIONS:
+            continue
+        native = bool(network.get("native"))
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO token_networks
+                (token_id, chain, contract_address, decimals, is_native, enabled, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+            """,
+            (
+                token_id,
+                chain,
+                network.get("contract"),
+                network["decimals"],
+                1 if native else 0,
+                timestamp,
+                timestamp,
+            ),
+        )
+
 
 def seed_database(db: Database) -> None:
-    existing = db.fetchone("SELECT value FROM app_meta WHERE key = 'seed_version'")
-    if existing is not None:
+    current = _current_seed_version(db)
+    if current >= SEED_VERSION:
         return
     timestamp = utcnow_iso()
     with db.transaction() as conn:
-        for token in BUILTIN_TOKENS:
-            conn.execute(
-                "INSERT OR IGNORE INTO tokens(symbol, name, coingecko_id, created_at) VALUES (?, ?, ?, ?)",
-                (token["symbol"], token["name"], token["coingecko_id"], timestamp),
-            )
-            row = conn.execute("SELECT id FROM tokens WHERE symbol = ?", (token["symbol"],)).fetchone()
-            if row is None:
+        for version in sorted(SEED_STEPS):
+            if version <= current:
                 continue
-            token_id = row["id"]
-            for network in token["networks"]:
-                chain = network["chain"]
-                if chain not in CHAIN_DEFINITIONS:
-                    continue
-                native = bool(network.get("native"))
-                conn.execute(
-                    """
-                    INSERT OR IGNORE INTO token_networks
-                        (token_id, chain, contract_address, decimals, is_native, enabled, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, 1, ?, ?)
-                    """,
-                    (
-                        token_id,
-                        chain,
-                        network.get("contract"),
-                        network["decimals"],
-                        1 if native else 0,
-                        timestamp,
-                        timestamp,
-                    ),
-                )
+            for token in SEED_STEPS[version]:
+                _insert_token(conn, token, timestamp)
         conn.execute(
             "INSERT INTO app_meta(key, value) VALUES ('seed_version', ?) "
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            (SEED_VERSION,),
+            (str(SEED_VERSION),),
         )

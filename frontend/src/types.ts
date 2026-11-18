@@ -1,4 +1,4 @@
-export type ChainId = 'ethereum' | 'solana' | 'bitcoin' | 'nervos' | 'cosmos'
+export type ChainId = 'ethereum' | 'solana' | 'bitcoin' | 'nervos' | 'cosmos' | 'stacks'
 
 export interface ChainMeta {
   id: ChainId

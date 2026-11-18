@@ -68,6 +68,16 @@ const style = computed(() => ({
       <path d="M8.5 16V8l7 8V8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
     <svg
+      v-else-if="chain === 'stacks'"
+      :width="iconSize"
+      :height="iconSize"
+      viewBox="0 0 24 24"
+      fill="none"
+    >
+      <path d="M4 7.5h16M4 16.5h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+      <path d="M7.5 7.5 16.5 16.5M16.5 7.5 7.5 16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+    </svg>
+    <svg
       v-else
       :width="iconSize"
       :height="iconSize"

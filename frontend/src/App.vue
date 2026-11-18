@@ -440,13 +440,13 @@ onUnmounted(() => {
               </div>
               <h2 class="mt-6 font-display text-2xl font-semibold tracking-tight">Your portfolio starts with one address</h2>
               <p class="mt-2 text-sm leading-relaxed text-base-content/45">
-                Add a public wallet address on Ethereum, Solana, Bitcoin, Nervos or Cosmos. AssetX discovers native and configured token balances and prices them in USD.
+                Add a public wallet address on Ethereum, Solana, Bitcoin, Nervos, Cosmos or Stacks. AssetX discovers native and configured token balances and prices them in USD.
               </p>
               <div class="mt-6 flex gap-2">
                 <button type="button" class="btn btn-primary btn-sm px-5" @click="showAddAddress = true">Add your first address</button>
                 <button type="button" class="btn btn-ghost btn-sm" @click="activeTab = 'tokens'">View token registry</button>
               </div>
-              <div class="mt-8 grid w-full grid-cols-5 gap-1.5">
+              <div class="mt-8 grid w-full grid-cols-3 gap-1.5 sm:grid-cols-6">
                 <div v-for="chain in chains" :key="chain.id" class="rounded-lg border border-base-content/[0.06] bg-base-200/35 px-1 py-2">
                   <p class="text-[10px] font-semibold">{{ chain.native_symbol }}</p>
                   <p class="mt-0.5 text-[9px] text-base-content/25">{{ chain.provider_count }} RPCs</p>
@@ -471,7 +471,7 @@ onUnmounted(() => {
         <p>AssetX · public chain data only. No private keys. Not financial advice.</p>
         <div class="flex items-center gap-4">
           <a class="transition hover:text-base-content/60" href="/api/docs" target="_blank" rel="noopener">API docs ↗</a>
-          <span>Ethereum · Solana · Bitcoin · Nervos · Cosmos</span>
+          <span>Ethereum · Solana · Bitcoin · Nervos · Cosmos · Stacks</span>
         </div>
       </div>
     </footer>

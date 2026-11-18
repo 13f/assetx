@@ -11,6 +11,7 @@ from app.chains.cosmos import CosmosAdapter
 from app.chains.ethereum import EthereumAdapter
 from app.chains.nervos import NervosAdapter
 from app.chains.solana import SolanaAdapter
+from app.chains.stacks import StacksAdapter
 from app.config import Settings
 
 
@@ -125,6 +126,24 @@ CHAIN_DEFINITIONS: dict[str, ChainDefinition] = {
         ),
         accent="#6F7390",
     ),
+    "stacks": ChainDefinition(
+        id="stacks",
+        name="Stacks",
+        native_symbol="STX",
+        native_name="Stacks",
+        native_decimals=6,
+        native_coingecko_id="blockstack",
+        address_placeholder="SP... or SM...",
+        address_hint="Stacks mainnet address (c32check, SP... or SM...)",
+        supports_tokens=True,
+        token_standard="SIP-010",
+        explorer_url="https://explorer.hiro.so/address/{address}?chain=mainnet",
+        providers=(
+            "https://api.hiro.so",
+            "https://api.mainnet.hiro.so",
+        ),
+        accent="#FC6432",
+    ),
 }
 
 CHAIN_ORDER = list(CHAIN_DEFINITIONS)
@@ -146,6 +165,7 @@ def providers_for(chain: str, settings: Settings) -> list[str]:
         "bitcoin": settings.bitcoin_apis,
         "nervos": settings.nervos_rpcs,
         "cosmos": settings.cosmos_apis,
+        "stacks": settings.stacks_apis,
     }[chain]
     return _split_override(override) or list(definition.providers)
 
@@ -176,6 +196,7 @@ def build_adapters(settings: Settings, client: httpx.AsyncClient) -> dict[str, C
         "bitcoin": BitcoinAdapter,
         "nervos": NervosAdapter,
         "cosmos": CosmosAdapter,
+        "stacks": StacksAdapter,
     }
     return {
         chain: classes[chain](providers_for(chain, settings), client)

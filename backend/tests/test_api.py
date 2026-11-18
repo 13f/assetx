@@ -14,7 +14,14 @@ def test_health_and_meta(client: TestClient):
     assert health.json()["status"] == "ok"
 
     chains = client.get("/api/chains").json()["items"]
-    assert [item["id"] for item in chains] == ["ethereum", "solana", "bitcoin", "nervos", "cosmos"]
+    assert [item["id"] for item in chains] == [
+        "ethereum",
+        "solana",
+        "bitcoin",
+        "nervos",
+        "cosmos",
+        "stacks",
+    ]
     symbols = {item["id"]: item["native_symbol"] for item in chains}
     assert symbols == {
         "ethereum": "ETH",
@@ -22,8 +29,12 @@ def test_health_and_meta(client: TestClient):
         "bitcoin": "BTC",
         "nervos": "CKB",
         "cosmos": "ATOM",
+        "stacks": "STX",
     }
     assert all(item["provider_count"] >= 2 for item in chains)
+    stacks = next(item for item in chains if item["id"] == "stacks")
+    assert stacks["token_standard"] == "SIP-010"
+    assert stacks["native_coingecko_id"] == "blockstack"
 
 
 def test_seeded_tokens(client: TestClient):
@@ -34,6 +45,8 @@ def test_seeded_tokens(client: TestClient):
         "BTC",
         "CKB",
         "ATOM",
+        "STX",
+        "SBTC",
         "USDT",
         "USDC",
         "PAXG",
@@ -41,6 +54,26 @@ def test_seeded_tokens(client: TestClient):
     }
     usdt = next(token for token in tokens if token["symbol"] == "USDT")
     assert {network["chain"] for network in usdt["networks"]} == {"ethereum", "solana"}
+    stx = next(token for token in tokens if token["symbol"] == "STX")
+    assert stx["coingecko_id"] == "blockstack"
+    assert len(stx["networks"]) == 1
+    stx_network = stx["networks"][0]
+    assert stx_network["chain"] == "stacks"
+    assert stx_network["is_native"] is True
+    assert stx_network["contract_address"] is None
+    assert stx_network["decimals"] == 6
+
+    sbtc = next(token for token in tokens if token["symbol"] == "SBTC")
+    assert sbtc["name"] == "sBTC"
+    assert sbtc["coingecko_id"] == "sbtc-2"
+    assert len(sbtc["networks"]) == 1
+    sbtc_network = sbtc["networks"][0]
+    assert sbtc_network["chain"] == "stacks"
+    assert sbtc_network["is_native"] is False
+    assert sbtc_network["contract_address"] == (
+        "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token"
+    )
+    assert sbtc_network["decimals"] == 8
 
 
 def test_create_address_lowercases_tags_and_prevents_duplicates(client: TestClient):
@@ -68,6 +101,9 @@ def test_rejects_invalid_addresses(client: TestClient):
         ("bitcoin", "not-a-bitcoin-address"),
         ("cosmos", "cosmos1invalid"),
         ("nervos", "ckb1invalid"),
+        ("stacks", "SPinvalid"),
+        ("stacks", "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7.my-contract"),
+        ("stacks", "ST2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKQYAC0RQ"),
     ]:
         response = client.post("/api/addresses", json={"chain": chain, "address": address, "tags": []})
         assert response.status_code == 422, (chain, response.text)
@@ -185,6 +221,28 @@ def test_token_registry_crud(client: TestClient):
     )
     assert invalid.status_code == 422
 
+    stacks = client.put(
+        f"/api/tokens/{token['id']}/networks/stacks",
+        json={
+            "contract_address": "sp2dbfgmt7satsjpcca38sddpbnnq86qwadj3e6wt.btc-v4::btc-v4",
+            "decimals": 8,
+        },
+    )
+    assert stacks.status_code == 200
+    stacks_network = next(item for item in stacks.json()["networks"] if item["chain"] == "stacks")
+    assert stacks_network["contract_address"] == (
+        "SP2DBFGMT7SATSJPCCA38SDDPBNNQ86QWADJ3E6WT.btc-v4::btc-v4"
+    )
+
+    stacks_contract_only = client.put(
+        f"/api/tokens/{token['id']}/networks/stacks",
+        json={
+            "contract_address": "SP2DBFGMT7SATSJPCCA38SDDPBNNQ86QWADJ3E6WT.btc-v4",
+            "decimals": 8,
+        },
+    )
+    assert stacks_contract_only.status_code == 422
+
     native_delete = client.delete("/api/tokens/1/networks/ethereum")
     assert native_delete.status_code == 409
 
@@ -197,7 +255,7 @@ def test_price_refresh_endpoint(client: TestClient):
     response = client.post("/api/tokens/prices/refresh")
     assert response.status_code == 200
     body = response.json()
-    assert body["updated"] == 9
+    assert body["updated"] == 11
     assert body["source"] == "test"
     usdt = next(token for token in client.get("/api/tokens").json()["items"] if token["symbol"] == "USDT")
     assert usdt["price_usd"] == "1"

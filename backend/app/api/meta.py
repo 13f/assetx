@@ -36,6 +36,8 @@ def meta(settings: Settings = Depends(get_settings)) -> dict:
             "BTC",
             "CKB",
             "ATOM",
+            "STX",
+            "SBTC",
             "USDT",
             "USDC",
             "PAXG",

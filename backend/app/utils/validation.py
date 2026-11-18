@@ -9,10 +9,17 @@ from app.utils.bech32 import (
     bech32_decode_bytes,
     convertbits,
 )
+from app.utils.c32 import C32Error, normalize_stacks_address
 from app.utils.ckb import CkbAddressError, decode_ckb_lock
 
 EVM_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 COSMOS_DENOM_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9/:._-]{1,127}$")
+# Clarity identifiers (contract and asset names) start with a letter and may
+# contain letters, digits, or the punctuation Stacks allows. Operator-only
+# names such as "-" or ">=" are valid too; this mirrors stacks.js.
+CLARITY_NAME_RE = re.compile(
+    r"^[a-zA-Z]([a-zA-Z0-9]|[-_!?+<>=/*])*$|^[-+=/*]$|^[<>]=?$"
+)
 
 
 class AddressValidationError(ValueError):
@@ -99,12 +106,55 @@ def _nervos_address(address: str) -> str:
     return value
 
 
+def _stacks_address(address: str) -> str:
+    value = address.strip()
+    if "." in value or "::" in value:
+        raise AddressValidationError(
+            "Stacks accounts must be a wallet address, not a contract principal"
+        )
+    try:
+        return normalize_stacks_address(value)
+    except C32Error as exc:
+        raise AddressValidationError(f"invalid Stacks address: {exc}") from exc
+
+
+def _stacks_name(value: str, label: str) -> str:
+    if len(value) > 128 or not CLARITY_NAME_RE.fullmatch(value):
+        raise AddressValidationError(
+            f"invalid Stacks {label}: it must be a Clarity name of at most 128 "
+            "characters using letters, digits or -_!?+<>=/*"
+        )
+    return value
+
+
+def _stacks_asset_identifier(value: str) -> str:
+    if "::" not in value:
+        raise AddressValidationError(
+            "Stacks token identifiers must be a full SIP-010 asset id, "
+            "for example SP....contract-name::asset-name"
+        )
+    contract_id, asset_name = value.split("::", 1)
+    if "." not in contract_id:
+        raise AddressValidationError(
+            "Stacks SIP-010 asset ids must include a contract principal before ::"
+        )
+    principal, contract_name = contract_id.split(".", 1)
+    try:
+        canonical_principal = normalize_stacks_address(principal)
+    except C32Error as exc:
+        raise AddressValidationError(f"invalid Stacks contract principal: {exc}") from exc
+    _stacks_name(contract_name, "contract name")
+    _stacks_name(asset_name, "asset name")
+    return f"{canonical_principal}.{contract_name}::{asset_name}"
+
+
 _VALIDATORS = {
     "ethereum": _eth_address,
     "solana": _solana_address,
     "bitcoin": _bitcoin_address,
     "nervos": _nervos_address,
     "cosmos": _cosmos_address,
+    "stacks": _stacks_address,
 }
 
 
@@ -120,8 +170,9 @@ def validate_contract_identifier(chain: str, value: str) -> str:
     """Validate a token identifier for a chain.
 
     EVM: 20-byte contract address. Solana: 32-byte mint address. Cosmos: bank
-    denom (native denom or IBC denom). Bitcoin/Nervos do not support generic
-    token contracts in AssetX.
+    denom (native denom or IBC denom). Stacks: full SIP-010 asset id
+    ``<contract-principal>::<asset-name>``. Bitcoin/Nervos do not support
+    generic token contracts in AssetX.
     """
     value = value.strip()
     if chain == "ethereum":
@@ -140,6 +191,8 @@ def validate_contract_identifier(chain: str, value: str) -> str:
         if not COSMOS_DENOM_RE.fullmatch(value):
             raise AddressValidationError("Cosmos token identifiers must be a bank denom such as uatom or ibc/...")
         return value
+    if chain == "stacks":
+        return _stacks_asset_identifier(value)
     if chain in {"bitcoin", "nervos"}:
         raise AddressValidationError(f"{chain} does not support generic token contracts in AssetX")
     raise AddressValidationError(f"unsupported chain: {chain}")

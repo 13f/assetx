@@ -4,7 +4,7 @@ A private, multi-chain portfolio tracker for public wallet addresses. AssetX rea
 
 ![AssetX accounts](docs/screenshots/accounts.png)
 
-Supported chains: **Ethereum, Solana, Bitcoin, Nervos, Cosmos**.
+Supported chains: **Ethereum, Solana, Bitcoin, Nervos, Cosmos, Stacks**.
 
 ## Highlights
 
@@ -12,7 +12,7 @@ Supported chains: **Ethereum, Solana, Bitcoin, Nervos, Cosmos**.
 - **Per-card refresh** plus a global **Refresh all** action.
 - **Sequential refresh queue** with a 3 second gap between address starts to avoid public endpoint rate limits.
 - **Public RPC failover**: every chain has multiple endpoints; the next endpoint is tried when one fails.
-- **Token registry**: one token can have a different ERC-20 contract, SPL mint, or Cosmos bank denom on each chain.
+- **Token registry**: one token can have a different ERC-20 contract, SPL mint, Cosmos bank denom, or SIP-010 asset id on each chain.
 - **Tags** on addresses, stored lowercase.
 - **Manual price refresh** through DefiLlama with a CoinGecko fallback and a short cache.
 - **SQLite persistence** for addresses, tags, token networks, balances, cached prices, and refresh jobs.
@@ -79,6 +79,7 @@ Copy `backend/.env.example` to `backend/.env` to override defaults. Useful setti
 | `ASSETX_BITCOIN_APIS` | built-in list | Comma-separated API override |
 | `ASSETX_NERVOS_RPCS` | built-in list | Comma-separated RPC override |
 | `ASSETX_COSMOS_APIS` | built-in list | Comma-separated REST override |
+| `ASSETX_STACKS_APIS` | built-in list | Comma-separated Hiro API override |
 
 The defaults use only public endpoints. They are rate limited and can change without notice; use your own endpoints for heavier usage.
 
@@ -89,7 +90,7 @@ cd backend
 ..\.venv\Scripts\python.exe -m pytest -q
 ```
 
-The suite covers address validation (including bech32/bech32m and CKB lock decoding), token registry CRUD, queue deduplication, RPC failover, price caching, and the full refresh-to-balance workflow with deterministic fakes.
+The suite covers address validation (including bech32/bech32m, c32check, and CKB lock decoding), token registry CRUD, queue deduplication, RPC failover, price caching, and the full refresh-to-balance workflow with deterministic fakes.
 
 Frontend checks:
 
@@ -114,6 +115,7 @@ bun run build
 - Bitcoin: native BTC only. BRC-20, Runes and inscription indexers are out of scope.
 - Nervos: native CKB only. Generic UDT tracking is out of scope.
 - Cosmos: Cosmos Hub native ATOM and Cosmos SDK bank denoms. Staked balances are not included.
+- Stacks: native STX and SIP-010 fungible tokens, including seeded sBTC. NFTs and contract-principal accounts are out of scope. Stacked STX that remains in the wallet is included in the on-chain balance.
 - Prices come from third-party public APIs. Tokens without a CoinGecko id are tracked but shown as unpriced.
 - The refresh worker is in-process. A running job is marked failed on restart; queued jobs are requeued.
 

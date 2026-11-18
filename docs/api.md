@@ -141,8 +141,8 @@ Optional query params: `chain`, `tag`, `q` (matches address or tags).
 }
 ```
 
-- `chain` is required and must be one of the five chain ids.
-- The address is validated and normalized per chain; EVM addresses are lowercased.
+- `chain` is required and must be one of the six chain ids.
+- The address is validated and normalized per chain; EVM addresses are lowercased, Stacks c32check addresses are uppercased.
 - Tags are trimmed, whitespace collapsed, lowercased, de-duplicated, and limited to 10 by default.
 - Returns `201` with the account. Duplicate `(chain, address)` returns `409`.
 
@@ -280,6 +280,7 @@ Set `coingecko_id` to `null` to clear it and stop pricing the token.
 - Ethereum: ERC-20 contract address.
 - Solana: SPL mint address.
 - Cosmos: bank denom (for example `uatom` or `ibc/...`).
+- Stacks: full SIP-010 asset id (`<contract-principal>::<asset-name>`, for example `SP....my-token::my-token`). A bare contract principal is rejected.
 - Bitcoin and Nervos: `400`, generic token contracts are not supported by AssetX.
 - Native networks are immutable (`409`).
 - Changing a contract deletes old balance rows for that network.

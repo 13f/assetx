@@ -74,7 +74,7 @@ The test suite does not call public endpoints. It injects:
 
 Coverage includes:
 
-- address validation for all five chains, including bech32/bech32m and CKB lock decoding,
+- address validation for all six chains, including bech32/bech32m, c32check, and CKB lock decoding,
 - seeded tokens and native symbols,
 - tag normalization and duplicate protection,
 - token registry CRUD and native-network immutability,
@@ -110,10 +110,11 @@ Settings are read from environment variables with the `ASSETX_` prefix and from 
 | `ASSETX_BITCOIN_APIS` | built-in | Comma-separated ordered list |
 | `ASSETX_NERVOS_RPCS` | built-in | Comma-separated ordered list |
 | `ASSETX_COSMOS_APIS` | built-in | Comma-separated ordered list |
+| `ASSETX_STACKS_APIS` | built-in | Comma-separated ordered list |
 
 Runtime data lives in `backend/data/`. Delete `assetx.db*` to reset the app; tokens are re-seeded on the next start.
 
-To populate the five public sample addresses used in the screenshots:
+To populate the six public sample addresses used in the screenshots:
 
 ```powershell
 python scripts\seed_demo.py
@@ -203,5 +204,6 @@ Set `ASSETX_REFRESH_INTERVAL_SECONDS` in `backend/.env` and restart the API. The
 - **Frontend shows old UI after `bun run build`** — restart the FastAPI process or hard-refresh the browser; the static directory is mounted at startup.
 - **A card is `partial`** — one or more positive balances have no price. Check the token's CoinGecko id or press “Refresh prices” on the Tokens page.
 - **Solana token balances are zero with a warning** — the official public RPC is rate limiting indexed requests. Configure a private Solana RPC in `ASSETX_SOLANA_RPCS`.
+- **Stacks balances fail with 429** — the Hiro API rate limits per IP. Configure a keyed endpoint in `ASSETX_STACKS_APIS`.
 - **A refresh failed** — open the queue indicator to see active jobs, and `GET /api/refresh/jobs` for provider/error details. Previous balances are preserved.
 - **Address rejected** — the API returns a chain-specific 422 message; check the address format on the chain documentation page.

@@ -102,7 +102,7 @@ async function refreshPrices() {
         <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">Registry</p>
         <h1 class="mt-1 font-display text-3xl font-semibold tracking-tight">Tokens & contracts</h1>
         <p class="mt-2 max-w-xl text-sm leading-relaxed text-base-content/45">
-          One token can have a different contract, mint or bank denom on each supported chain. Native assets are seeded and locked.
+          One token can have a different contract, mint, bank denom or SIP-010 asset id on each supported chain. Native assets are seeded and locked.
         </p>
       </div>
       <div class="flex items-center gap-2">

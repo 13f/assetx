@@ -17,6 +17,7 @@ const colors: Record<ChainId, [string, string]> = {
   bitcoin: ['#fbbf24', '#f97316'],
   nervos: ['#6ee7b7', '#10b981'],
   cosmos: ['#c4b5fd', '#8b5cf6'],
+  stacks: ['#fdba74', '#ea580c'],
 }
 
 const palette = computed(() => colors[props.chain] ?? ['#94a3b8', '#64748b'])

@@ -1,4 +1,4 @@
-"""Add the five public sample addresses used in the docs screenshots.
+"""Add the six public sample addresses used in the docs screenshots.
 
 Start the API first, then run:
     python scripts/seed_demo.py
@@ -21,6 +21,7 @@ SAMPLES = [
         ["CKB"],
     ),
     ("cosmos", "cosmos1q4hjnwuat6zuxuplew5rvvw6yw3a4kwrm3e5ds", ["Cosmos Hub", "Staking"]),
+    ("stacks", "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7", ["Stacks", "DeFi"]),
 ]
 
 

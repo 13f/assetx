@@ -47,6 +47,7 @@ const fieldLabel = computed(() => {
   if (chain.value === 'ethereum') return 'ERC-20 contract address'
   if (chain.value === 'solana') return 'SPL mint address'
   if (chain.value === 'cosmos') return 'Bank denom'
+  if (chain.value === 'stacks') return 'SIP-010 asset identifier'
   return 'Contract / identifier'
 })
 
@@ -54,6 +55,7 @@ const placeholder = computed(() => {
   if (chain.value === 'ethereum') return '0x…'
   if (chain.value === 'solana') return 'Base58 mint address'
   if (chain.value === 'cosmos') return 'uatom or ibc/…'
+  if (chain.value === 'stacks') return 'SP…contract::asset'
   return ''
 })
 
