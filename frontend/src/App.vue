@@ -7,6 +7,7 @@ import { useToasts } from './composables/useToasts'
 import AccountCard from './components/AccountCard.vue'
 import AccountDetailModal from './components/AccountDetailModal.vue'
 import AddAddressModal from './components/AddAddressModal.vue'
+import ChainCard from './components/ChainCard.vue'
 import ChainIcon from './components/ChainIcon.vue'
 import ConfirmDeleteModal from './components/ConfirmDeleteModal.vue'
 import EditTagsModal from './components/EditTagsModal.vue'
@@ -49,6 +50,37 @@ const chainCounts = computed(() => {
     counts.set(account.chain, (counts.get(account.chain) ?? 0) + 1)
   }
   return counts
+})
+
+interface ChainSummary {
+  chain: ChainMeta
+  totalUsd: number
+  share: number
+  accountCount: number
+  lastSyncedAt: string | null
+  status: Account['total_status']
+}
+const chainSummaries = computed<ChainSummary[]>(() => {
+  const portfolioTotal = totalUsd.value
+  return chains.value.map((chain) => {
+    const chainAccounts = accounts.value.filter((account) => account.chain === chain.id)
+    const chainTotal = chainAccounts.reduce((sum, account) => sum + Number(account.total_usd || 0), 0)
+    let status: Account['total_status'] = 'complete'
+    if (chainAccounts.some((account) => account.total_status === 'partial')) status = 'partial'
+    else if (chainAccounts.some((account) => account.total_status === 'stale')) status = 'stale'
+    const syncTimes = chainAccounts
+      .map((account) => account.last_refreshed_at)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+    return {
+      chain,
+      totalUsd: chainTotal,
+      share: portfolioTotal > 0 ? (chainTotal / portfolioTotal) * 100 : 0,
+      accountCount: chainAccounts.length,
+      lastSyncedAt: syncTimes.length ? syncTimes[syncTimes.length - 1] : null,
+      status,
+    }
+  })
 })
 const allTags = computed(() => {
   const tags = new Set<string>()
@@ -227,6 +259,11 @@ function clearFilters() {
   tagFilter.value = 'all'
 }
 
+function toggleChainSummary(chain: ChainMeta) {
+  if (!chainCounts.value.get(chain.id)) return
+  chainFilter.value = chainFilter.value === chain.id ? 'all' : chain.id
+}
+
 watch(activeTab, (tab) => {
   if (tab === 'tokens' && !tokens.value.length) loadTokens().catch(() => undefined)
 })
@@ -390,6 +427,32 @@ onUnmounted(() => {
                   <button type="button" class="btn btn-primary btn-sm" @click="showAddAddress = true">Add account</button>
                 </div>
               </div>
+            </div>
+          </section>
+
+          <section v-if="accounts.length" class="mt-6">
+            <div class="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <p class="eyebrow">Chain allocation</p>
+                <h2 class="mt-1 font-display text-base font-semibold tracking-tight">Assets by chain</h2>
+              </div>
+              <p class="hidden text-[11px] text-base-content/30 sm:block">Select a chain to filter accounts</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+              <ChainCard
+                v-for="(summary, index) in chainSummaries"
+                :key="summary.chain.id"
+                :chain="summary.chain"
+                :total-usd="summary.totalUsd"
+                :share="summary.share"
+                :account-count="summary.accountCount"
+                :last-synced-at="summary.lastSyncedAt"
+                :status="summary.status"
+                :active="chainFilter === summary.chain.id"
+                class="grid-fade"
+                :style="{ animationDelay: `${Math.min(index, 6) * 30}ms` }"
+                @toggle="toggleChainSummary"
+              />
             </div>
           </section>
 

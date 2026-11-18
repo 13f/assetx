@@ -9,6 +9,7 @@ Supported chains: **Ethereum, Solana, Bitcoin, Nervos, Cosmos, Stacks**.
 ## Highlights
 
 - **Account cards** on the home page, each showing up to three assets and a total USD balance.
+- **Chain cards** that roll up total USD value, portfolio share, account count, and last sync per chain; click a card to filter the account grid.
 - **Per-card refresh** plus a global **Refresh all** action.
 - **Sequential refresh queue** with a 3 second gap between address starts to avoid public endpoint rate limits.
 - **Public RPC failover**: every chain has multiple endpoints; the next endpoint is tried when one fails.

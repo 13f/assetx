@@ -165,6 +165,7 @@ assetx/
 - DaisyUI 5 with a custom `assetx` dark theme in `src/style.css`.
 - Tailwind CSS 4 via `@tailwindcss/vite`.
 - No router: the header switches between the accounts view and token registry.
+- Chain summaries are computed in `App.vue` from the loaded account totals and rendered by `components/ChainCard.vue`; clicking a card toggles the same chain filter as the hero chips.
 - Polling interval: 2.5 seconds while the page is visible.
 - API client: `frontend/src/api.ts`; base URL defaults to `/api` and can be overridden with `VITE_API_BASE_URL`.
 

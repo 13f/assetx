@@ -20,7 +20,7 @@ AssetX is a local-first multi-chain portfolio tracker. This directory documents 
 5. Refreshes are manual. A queue processes one address at a time with at least **3 seconds between address starts**.
 6. On a successful refresh AssetX writes the latest balance rows, the USD price/value, the endpoint that answered, and the address/chain refresh timestamp.
 7. If a public endpoint fails, the next endpoint for that chain is tried in order.
-8. Home is an account-card grid. Each card shows up to three assets, the total USD value, tags, refresh state, and a per-card refresh button.
+8. Home shows a chain rollup above the account-card grid: each chain card totals the USD value of its accounts, its share of the portfolio, account count, and last sync. Clicking a card filters the grid to that chain.
 
 ## Screenshots
 

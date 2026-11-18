@@ -136,6 +136,7 @@ Each adapter owns an ordered provider list from `app/chains/registry.py`. A prov
 
 - On load: fetch chains, addresses, and queue status.
 - Poll queue status every 2.5 seconds; when the active count reaches zero, reload cards and show a completion toast.
+- Chain cards above the account grid derive per-chain totals from the loaded accounts, so they always add up to the portfolio total. Each card shows USD value, share, account count, and last sync. Clicking one toggles the chain filter; chains without accounts are shown disabled.
 - Cards display positive assets, sorted by USD value. If every balance is zero, the native token row is shown. Only three rows are rendered; the rest are available in the details modal.
 - Add/Edit Tags modals validate quickly on the client and surface API errors.
 - The token registry view supports custom tokens, per-chain contracts, editing, and price refresh.
