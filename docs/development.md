@@ -80,8 +80,9 @@ Coverage includes:
 - token registry CRUD and native-network immutability,
 - queue deduplication and 3-second spacing,
 - JSON-RPC fallback from a failed provider to the next,
+- Uniswap V3/V4 position decoding, tick math, Keccak-256 pool ids, LP scan limits, and contract-address pricing,
 - price cache completeness,
-- the full refresh → balances → prices → card summary flow.
+- the full refresh → balances → prices → card summary flow, including LP position persistence and totals.
 
 Frontend checks:
 
@@ -106,6 +107,11 @@ Settings are read from environment variables with the `ASSETX_` prefix and from 
 | `ASSETX_CORS_ORIGINS` | local Vite origins | Comma separated or `*` |
 | `ASSETX_START_WORKER` | `true` | Set false for API-only/testing |
 | `ASSETX_ETHEREUM_RPCS` | built-in | Comma-separated ordered list |
+| `ASSETX_ETHEREUM_LP_POSITIONS_ENABLED` | `true` | Scan Ethereum wallets for Uniswap LP NFTs |
+| `ASSETX_ETHEREUM_LP_POSITION_MANAGERS` | built-in | Comma-separated V3 position-manager override |
+| `ASSETX_ETHEREUM_LP_MAX_POSITIONS` | `30` | Position scan cap per wallet |
+| `ASSETX_ETHEREUM_LP_V4_ENABLED` | `true` | Scan for Uniswap V4 positions |
+| `ASSETX_ETHEREUM_LP_BLOCKSCOUT_APIS` | built-in | Comma-separated Blockscout API override |
 | `ASSETX_SOLANA_RPCS` | built-in | Comma-separated ordered list |
 | `ASSETX_BITCOIN_APIS` | built-in | Comma-separated ordered list |
 | `ASSETX_NERVOS_RPCS` | built-in | Comma-separated ordered list |
@@ -195,6 +201,16 @@ Invoke-RestMethod -Method Put -Uri http://127.0.0.1:8000/api/tokens/10/networks/
   -Body '{"contract_address":"0x514910771AF9Ca656af840dff83E8264EcF986CA","decimals":18}'
 ```
 
+### Add an LP position manager
+
+The built-in Uniswap V3 and V4 readers run against the canonical Ethereum contracts. Additional Uniswap V3-compatible managers can be scanned without code:
+
+```dotenv
+ASSETX_ETHEREUM_LP_POSITION_MANAGERS=0xC36442b4a4522E871399CD717aBDD847Ab11FE88,0x...
+```
+
+Set `ASSETX_ETHEREUM_LP_POSITIONS_ENABLED=false` to turn Ethereum NFT discovery off, or `ASSETX_ETHEREUM_LP_V4_ENABLED=false` to skip only V4. V4 discovery needs Blockscout; set `ASSETX_ETHEREUM_LP_BLOCKSCOUT_APIS` to a self-hosted index when the public instance is rate limited. A different position protocol (for example a non-Uniswap NFT model) needs a new reader that returns `LpPosition` objects in `FetchResult.positions` and marks its protocol name in `positions_complete`; the refresh, persistence, pricing, and API layers then work unchanged.
+
 ### Change the interval
 
 Set `ASSETX_REFRESH_INTERVAL_SECONDS` in `backend/.env` and restart the API. The queue interval is exposed to the UI through `/api/refresh/status`.
@@ -203,7 +219,8 @@ Set `ASSETX_REFRESH_INTERVAL_SECONDS` in `backend/.env` and restart the API. The
 
 - **`bun: command not found`** — install Bun from <https://bun.sh/> and reopen the terminal.
 - **Frontend shows old UI after `bun run build`** — restart the FastAPI process or hard-refresh the browser; the static directory is mounted at startup.
-- **A card is `partial`** — one or more positive balances have no price. Check the token's CoinGecko id or press “Refresh prices” on the Tokens page.
+- **A card is `partial`** — one or more positive balances or LP positions have no price. Check the token's CoinGecko id or press “Refresh prices” on the Tokens page. LP underlying tokens are priced by contract address and cannot be fixed from the registry; obscure tokens may simply have no price feed.
+- **An LP position is missing** — the scan is capped by `ASSETX_ETHEREUM_LP_MAX_POSITIONS`, and the position must be owned by the wallet (not staked elsewhere). Uniswap V2 LP tokens and generic NFTs are out of scope. For V4, Blockscout must have indexed the position; check `last_refresh_warning` for `Uniswap V4` discovery errors and configure `ASSETX_ETHEREUM_LP_BLOCKSCOUT_APIS` if the public index is rate limited.
 - **Solana token balances are zero with a warning** — the official public RPC is rate limiting indexed requests. Configure a private Solana RPC in `ASSETX_SOLANA_RPCS`.
 - **Stacks balances fail with 429** — the Hiro API rate limits per IP. Configure a keyed endpoint in `ASSETX_STACKS_APIS`.
 - **A refresh failed** — open the queue indicator to see active jobs, and `GET /api/refresh/jobs` for provider/error details. Previous balances are preserved.

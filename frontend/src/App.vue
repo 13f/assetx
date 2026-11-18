@@ -503,7 +503,7 @@ onUnmounted(() => {
               </div>
               <h2 class="mt-6 font-display text-2xl font-semibold tracking-tight">Your portfolio starts with one address</h2>
               <p class="mt-2 text-sm leading-relaxed text-base-content/45">
-                Add a public wallet address on Ethereum, Solana, Bitcoin, Nervos, Cosmos or Stacks. AssetX discovers native and configured token balances and prices them in USD.
+                Add a public wallet address on Ethereum, Solana, Bitcoin, Nervos, Cosmos or Stacks. AssetX discovers native and configured token balances, plus Uniswap V3 LP positions on Ethereum, and prices them in USD.
               </p>
               <div class="mt-6 flex gap-2">
                 <button type="button" class="btn btn-primary btn-sm px-5" @click="showAddAddress = true">Add your first address</button>

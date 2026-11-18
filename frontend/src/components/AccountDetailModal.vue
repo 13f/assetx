@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Account } from '../types'
+import type { Account, LpPosition } from '../types'
 import { formatAmount, formatPrice, formatUsd, shortAddress, timeAgo } from '../utils/format'
 import ChainIcon from './ChainIcon.vue'
 import TokenBadge from './TokenBadge.vue'
@@ -16,6 +16,17 @@ const emit = defineEmits<{
 
 function onBackdrop(event: MouseEvent) {
   if (event.target === event.currentTarget) emit('close')
+}
+
+function feeTierLabel(feeTier: number): string {
+  if (feeTier > 1_000_000) return 'dynamic'
+  const percent = feeTier / 10000
+  return `${percent < 0.01 ? percent.toFixed(3) : percent.toFixed(2)}%`
+}
+
+function positionUrl(position: LpPosition): string {
+  const version = position.protocol === 'uniswap-v4' ? 'v4' : 'v3'
+  return `https://app.uniswap.org/positions/${version}/ethereum/${encodeURIComponent(position.token_id)}`
 }
 </script>
 
@@ -46,6 +57,7 @@ function onBackdrop(event: MouseEvent) {
           <span>Updated {{ timeAgo(account.last_refreshed_at) }}</span>
           <span v-if="account.last_refresh_provider">via {{ account.last_refresh_provider }}</span>
           <span>{{ account.tracked_token_count }} tracked asset{{ account.tracked_token_count === 1 ? '' : 's' }}</span>
+          <span v-if="account.position_count">{{ account.position_count }} LP NFT{{ account.position_count === 1 ? '' : 's' }}</span>
         </div>
       </div>
 
@@ -79,6 +91,56 @@ function onBackdrop(event: MouseEvent) {
           <span class="text-2xl opacity-25">◌</span>
           <p class="text-sm text-base-content/40">No saved balances</p>
           <p class="text-xs text-base-content/25">Refresh this address to fetch its assets.</p>
+        </div>
+
+        <div v-if="account.positions.length" class="mt-4 px-1">
+          <div class="mb-2 flex items-center justify-between px-2">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-base-content/35">Liquidity positions</p>
+            <span class="badge badge-ghost badge-xs">{{ account.position_count }}</span>
+          </div>
+          <div class="space-y-2">
+            <a
+              v-for="position in account.positions"
+              :key="position.id"
+              :href="positionUrl(position)"
+              target="_blank"
+              rel="noopener"
+              class="block rounded-box border border-base-content/10 bg-base-100/25 px-3 py-2.5 transition hover:border-primary/30 hover:bg-primary/[0.04]"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-semibold">
+                    {{ position.token0.symbol }} / {{ position.token1.symbol }}
+                  </p>
+                  <p class="mt-0.5 truncate text-[11px] text-base-content/35">
+                    {{ position.collection }} · #{{ position.token_id }} · {{ feeTierLabel(position.fee_tier) }} fee
+                  </p>
+                </div>
+                <div class="shrink-0 text-right">
+                  <p class="text-sm tabular-nums" :class="position.value_usd ? 'text-base-content/80' : 'text-warning/80'">
+                    {{ position.value_usd ? formatUsd(position.value_usd) : 'no price' }}
+                  </p>
+                  <span
+                    class="mt-0.5 inline-flex items-center gap-1 text-[10px]"
+                    :class="position.in_range ? 'text-success/80' : 'text-warning/80'"
+                  >
+                    <span class="h-1 w-1 rounded-full" :class="position.in_range ? 'bg-success' : 'bg-warning'" />
+                    {{ position.in_range ? 'in range' : 'out of range' }}
+                  </span>
+                </div>
+              </div>
+              <div class="mt-2 grid grid-cols-2 gap-2 text-[11px] text-base-content/50">
+                <p class="truncate tabular-nums">
+                  {{ formatAmount(position.token0.amount) }}
+                  <span class="text-base-content/30">{{ position.token0.symbol }}</span>
+                </p>
+                <p class="truncate text-right tabular-nums">
+                  {{ formatAmount(position.token1.amount) }}
+                  <span class="text-base-content/30">{{ position.token1.symbol }}</span>
+                </p>
+              </div>
+            </a>
+          </div>
         </div>
 
         <div v-if="account.last_refresh_warning" class="mx-2 mt-3 rounded-box border border-warning/20 bg-warning/5 px-3 py-2 text-[11px] leading-relaxed text-warning/80">

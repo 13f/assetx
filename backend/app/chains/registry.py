@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -7,12 +8,17 @@ import httpx
 
 from app.chains.base import ChainAdapter
 from app.chains.bitcoin import BitcoinAdapter
+from app.chains.blockscout import DEFAULT_BLOCKSCOUT_APIS
 from app.chains.cosmos import CosmosAdapter
 from app.chains.ethereum import EthereumAdapter
 from app.chains.nervos import NervosAdapter
 from app.chains.solana import SolanaAdapter
 from app.chains.stacks import StacksAdapter
+from app.chains.uniswap import DEFAULT_NFT_COLLECTIONS, NftCollection, UNISWAP_V3_COLLECTION
 from app.config import Settings
+from app.utils.validation import EVM_ADDRESS_RE
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -30,6 +36,7 @@ class ChainDefinition:
     explorer_url: str
     providers: tuple[str, ...]
     accent: str
+    supports_nft_positions: bool = False
 
 
 CHAIN_DEFINITIONS: dict[str, ChainDefinition] = {
@@ -52,6 +59,7 @@ CHAIN_DEFINITIONS: dict[str, ChainDefinition] = {
             "https://eth.llamarpc.com",
         ),
         accent="#627EEA",
+        supports_nft_positions=True,
     ),
     "solana": ChainDefinition(
         id="solana",
@@ -170,6 +178,42 @@ def providers_for(chain: str, settings: Settings) -> list[str]:
     return _split_override(override) or list(definition.providers)
 
 
+def lp_collections_for(settings: Settings) -> tuple[NftCollection, ...]:
+    """Position-manager contracts to scan for LP NFTs.
+
+    Ethereum only. An empty override list keeps the canonical Uniswap V3
+    position manager; disabling the feature returns no collections.
+    """
+    if not settings.ethereum_lp_positions_enabled:
+        return ()
+    overrides = _split_override(settings.ethereum_lp_position_managers)
+    if not overrides:
+        return DEFAULT_NFT_COLLECTIONS
+    collections: list[NftCollection] = []
+    for contract in overrides:
+        if not EVM_ADDRESS_RE.fullmatch(contract):
+            logger.warning("ignoring invalid LP position manager address: %s", contract)
+            continue
+        collections.append(
+            NftCollection(
+                protocol=UNISWAP_V3_COLLECTION.protocol,
+                name=UNISWAP_V3_COLLECTION.name,
+                contract_address=contract.lower(),
+            )
+        )
+    if not collections:
+        logger.warning(
+            "no valid LP position managers configured; falling back to the built-in list"
+        )
+        return DEFAULT_NFT_COLLECTIONS
+    return tuple(collections)
+
+
+def blockscout_apis_for(settings: Settings) -> tuple[str, ...]:
+    apis = _split_override(settings.ethereum_lp_blockscout_apis)
+    return tuple(apis) or DEFAULT_BLOCKSCOUT_APIS
+
+
 def chain_meta(chain: str, settings: Settings) -> dict[str, Any]:
     definition = CHAIN_DEFINITIONS[chain]
     return {
@@ -183,6 +227,8 @@ def chain_meta(chain: str, settings: Settings) -> dict[str, Any]:
         "address_hint": definition.address_hint,
         "supports_tokens": definition.supports_tokens,
         "token_standard": definition.token_standard,
+        "supports_nft_positions": definition.supports_nft_positions
+        and (chain != "ethereum" or settings.ethereum_lp_positions_enabled),
         "explorer_url": definition.explorer_url,
         "provider_count": len(providers_for(chain, settings)),
         "accent": definition.accent,
@@ -198,7 +244,23 @@ def build_adapters(settings: Settings, client: httpx.AsyncClient) -> dict[str, C
         "cosmos": CosmosAdapter,
         "stacks": StacksAdapter,
     }
-    return {
-        chain: classes[chain](providers_for(chain, settings), client)
-        for chain in CHAIN_ORDER
-    }
+    lp_collections = lp_collections_for(settings)
+    lp_v4_enabled = (
+        settings.ethereum_lp_positions_enabled and settings.ethereum_lp_v4_enabled
+    )
+    blockscout_apis = blockscout_apis_for(settings)
+    adapters: dict[str, ChainAdapter] = {}
+    for chain in CHAIN_ORDER:
+        providers = providers_for(chain, settings)
+        if chain == "ethereum":
+            adapters[chain] = EthereumAdapter(
+                providers,
+                client,
+                lp_collections=lp_collections,
+                lp_max_positions=settings.ethereum_lp_max_positions,
+                lp_v4_enabled=lp_v4_enabled,
+                lp_v4_blockscout_apis=blockscout_apis,
+            )
+        else:
+            adapters[chain] = classes[chain](providers, client)
+    return adapters

@@ -27,6 +27,24 @@ const refreshLabel = computed(() => {
 const visibleTags = computed(() => props.account.tags.slice(0, 3))
 const extraTags = computed(() => Math.max(0, props.account.tags.length - visibleTags.value.length))
 const hasWarning = computed(() => Boolean(props.account.last_refresh_warning || props.account.last_refresh_error))
+const unpricedCount = computed(
+  () => props.account.unpriced_token_count + props.account.unpriced_position_count,
+)
+const positionTotal = computed(() => {
+  const values = props.account.positions
+    .map((position) => position.value_usd)
+    .filter((value): value is string => value !== null)
+  if (!values.length) return '—'
+  return formatUsd(values.reduce((sum, value) => sum + Number(value), 0))
+})
+const positionSubtitle = computed(() => {
+  const positions = props.account.positions
+  if (!positions.length) return ''
+  const outOfRange = positions.filter((position) => !position.in_range).length
+  const collection = positions[0]?.collection ?? 'Liquidity'
+  const suffix = outOfRange ? `${outOfRange} out of range` : 'in range'
+  return `${collection} · ${suffix}`
+})
 
 function closeMenu() {
   const active = document.activeElement
@@ -120,7 +138,7 @@ function openExplorer() {
         <span
           v-if="account.total_status === 'partial'"
           class="badge badge-warning badge-soft badge-xs mb-0.5"
-          :title="`${account.unpriced_token_count} asset(s) could not be priced`"
+          :title="`${unpricedCount} asset(s) could not be priced`"
         >
           partial
         </span>
@@ -160,6 +178,28 @@ function openExplorer() {
         <p class="text-xs text-base-content/40">No balances yet</p>
         <p class="text-[11px] text-base-content/25">Run a refresh to fetch this address.</p>
       </div>
+
+      <button
+        v-if="account.position_count > 0"
+        type="button"
+        class="mt-2 flex w-full items-center justify-between gap-3 rounded-xl border border-primary/15 bg-primary/[0.045] px-2.5 py-2 text-left transition hover:border-primary/30 hover:bg-primary/[0.08]"
+        @click="emit('details', account)"
+      >
+        <span class="flex min-w-0 items-center gap-2.5">
+          <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-[10px] font-bold text-primary">LP</span>
+          <span class="min-w-0">
+            <span class="block truncate text-[12px] font-semibold tracking-wide">
+              {{ account.position_count }} {{ account.position_count === 1 ? 'position' : 'positions' }}
+            </span>
+            <span class="block truncate text-[10px] text-base-content/35">{{ positionSubtitle }}</span>
+          </span>
+        </span>
+        <span class="shrink-0 text-right">
+          <span class="block text-xs font-medium tabular-nums">{{ positionTotal }}</span>
+          <span v-if="account.unpriced_position_count" class="block text-[10px] text-warning/70">no price</span>
+          <span v-else class="block text-[10px] text-base-content/25">LP NFT</span>
+        </span>
+      </button>
 
       <button
         v-if="account.hidden_token_count > 0"

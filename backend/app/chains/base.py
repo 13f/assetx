@@ -20,11 +20,45 @@ class TokenNetwork:
     coingecko_id: str | None = None
 
 
+@dataclass(frozen=True)
+class LpPosition:
+    """A non-fungible liquidity position read from a position-manager contract.
+
+    ``token*_amount_raw`` values are integer base units. A position is not a
+    fungible token, so it is stored and valued separately from ``TokenNetwork``
+    balances.
+    """
+
+    protocol: str
+    collection: str
+    contract_address: str
+    token_id: str
+    pool_address: str
+    token0_address: str
+    token0_symbol: str
+    token0_decimals: int
+    token0_amount_raw: str
+    token1_address: str
+    token1_symbol: str
+    token1_decimals: int
+    token1_amount_raw: str
+    fee_tier: int
+    tick_lower: int
+    tick_upper: int
+    liquidity: str
+    in_range: bool
+
+
 @dataclass
 class FetchResult:
     balances: dict[int, str]
     provider: str
     warnings: list[str] = field(default_factory=list)
+    positions: list[LpPosition] = field(default_factory=list)
+    # Protocols whose position scan completed authoritatively ("uniswap-v3",
+    # "uniswap-v4"). A refresh replaces only these protocols' saved rows, so a
+    # V4 indexer outage never wipes saved V3 positions and vice versa.
+    positions_complete: set[str] = field(default_factory=set)
 
 
 class ProviderError(RuntimeError):

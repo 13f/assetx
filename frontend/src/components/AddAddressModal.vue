@@ -93,6 +93,7 @@ function onBackdrop(event: MouseEvent) {
                 <span class="badge badge-ghost badge-sm text-[10px]">{{ selectedChain.native_symbol }} native</span>
                 <span v-if="selectedChain.supports_tokens" class="badge badge-ghost badge-sm text-[10px]">{{ selectedChain.token_standard }}</span>
                 <span v-else class="badge badge-ghost badge-sm text-[10px]">native only</span>
+                <span v-if="selectedChain.supports_nft_positions" class="badge badge-ghost badge-sm text-[10px]">Uniswap V3 LP</span>
               </div>
             </template>
             <p v-else class="flex h-full items-center text-xs leading-relaxed text-base-content/35">

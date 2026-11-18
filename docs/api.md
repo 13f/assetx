@@ -57,6 +57,7 @@ Common status codes: `400` unknown chain, `404` missing resource, `409` duplicat
       "address_hint": "EVM address: 0x followed by 40 hex characters",
       "supports_tokens": true,
       "token_standard": "ERC-20",
+      "supports_nft_positions": true,
       "explorer_url": "https://etherscan.io/address/{address}",
       "provider_count": 4,
       "accent": "#627EEA"
@@ -94,11 +95,13 @@ Optional query params: `chain`, `tag`, `q` (matches address or tags).
       "last_refresh_error": null,
       "last_refresh_warning": null,
       "last_refresh_provider": "ethereum-rpc.publicnode.com",
-      "total_usd": "10712.43",
+      "total_usd": "10763.01",
       "total_status": "complete",
       "unpriced_token_count": 0,
+      "unpriced_position_count": 0,
       "tracked_token_count": 5,
       "hidden_token_count": 0,
+      "position_count": 1,
       "tokens": [
         {
           "network_id": 1,
@@ -116,6 +119,39 @@ Optional query params: `chain`, `tag`, `q` (matches address or tags).
           "updated_at": "2026-11-15T07:29:34Z"
         }
       ],
+      "positions": [
+        {
+          "id": 1,
+          "protocol": "uniswap-v3",
+          "collection": "Uniswap V3",
+          "contract_address": "0xc36442b4a4522e871399cd717abdd847ab11fe88",
+          "token_id": "112161",
+          "pool_address": "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640",
+          "fee_tier": 500,
+          "tick_lower": -887220,
+          "tick_upper": 887220,
+          "in_range": true,
+          "liquidity": "137378032570732",
+          "token0": {
+            "address": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+            "symbol": "WETH",
+            "decimals": 18,
+            "amount": "0.1",
+            "price_usd": "1809.948603",
+            "value_usd": "180.99"
+          },
+          "token1": {
+            "address": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+            "symbol": "USDC",
+            "decimals": 6,
+            "amount": "200",
+            "price_usd": "0.9998188845",
+            "value_usd": "199.96"
+          },
+          "value_usd": "380.95",
+          "updated_at": "2026-11-15T07:29:34Z"
+        }
+      ],
       "refresh": null
     }
   ],
@@ -126,10 +162,12 @@ Optional query params: `chain`, `tag`, `q` (matches address or tags).
 `total_status`:
 
 - `stale` — never refreshed.
-- `partial` — at least one positive balance has no USD price.
-- `complete` — refreshed and all positive balances are priced.
+- `partial` — at least one positive balance or LP position has no USD price.
+- `complete` — refreshed and all positive balances and positions are priced.
 
-`tokens` on the list endpoint is capped at 3. `GET /addresses/{id}` returns every saved balance. `refresh` is non-null when a job is queued/running.
+`tokens` on the list endpoint is capped at 3. `GET /addresses/{id}` returns every saved balance and LP position. `refresh` is non-null when a job is queued/running.
+
+`positions` is populated for Ethereum wallets that own Uniswap V3 or V4 LP NFTs (see [chains](chains.md#uniswap-lp-positions-v3-and-v4-nfts)). A position's `token0`/`token1` amounts are already converted to human units from the position's on-chain liquidity and price range. `protocol` is `uniswap-v3` or `uniswap-v4`; `pool_address` is the V3 pool address or the V4 `bytes32` pool id. A V4 position can hold native ETH, which is reported with the zero address and the `ETH` symbol. `in_range` compares the current pool tick with `[tick_lower, tick_upper)`. `value_usd` is `null` when a side with a positive amount has no contract price; such a position still appears, and `unpriced_position_count` is non-zero. `position_count` is the total saved position count.
 
 ### `POST /addresses`
 

@@ -6,9 +6,9 @@ AssetX is a local-first multi-chain portfolio tracker. This directory documents 
 
 | Document | What it covers |
 | --- | --- |
-| [Architecture](architecture.md) | Layers, SQLite schema, refresh pipeline, queue, RPC failover, price cache |
+| [Architecture](architecture.md) | Layers, SQLite schema, refresh pipeline, queue, RPC failover, price cache, LP positions |
 | [API reference](api.md) | Every endpoint, request/response shapes, errors, curl examples |
-| [Chains & RPCs](chains.md) | Supported chains, native tokens, token standards, public endpoints, limitations |
+| [Chains & RPCs](chains.md) | Supported chains, native tokens, token standards, Uniswap V3 LP NFTs, public endpoints, limitations |
 | [Development](development.md) | Setup, run, test, build, configuration, project layout, extension points |
 
 ## Product rules
@@ -18,7 +18,7 @@ AssetX is a local-first multi-chain portfolio tracker. This directory documents 
 3. Every chain has a native token: ETH, SOL, BTC, CKB, ATOM, STX.
 4. The token registry ships with ETH, SOL, BTC, CKB, ATOM, STX, SBTC, USDT, USDC, PAXG, and XAUT. A token can have a different contract/mint/denom/asset id per chain.
 5. Refreshes are manual. A queue processes one address at a time with at least **3 seconds between address starts**.
-6. On a successful refresh AssetX writes the latest balance rows, the USD price/value, the endpoint that answered, and the address/chain refresh timestamp.
+6. On a successful refresh AssetX writes the latest balance rows, the USD price/value, the endpoint that answered, and the address/chain refresh timestamp. Ethereum refreshes also scan for Uniswap V3 and V4 LP NFT positions, decode their underlying token amounts, and add their value to the account total.
 7. If a public endpoint fails, the next endpoint for that chain is tried in order.
 8. Home shows a chain rollup above the account-card grid: each chain card totals the USD value of its accounts, its share of the portfolio, account count, and last sync. Clicking a card filters the grid to that chain.
 

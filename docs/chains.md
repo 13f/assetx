@@ -6,7 +6,7 @@ AssetX tracks six chains. Each address belongs to exactly one chain, and each ch
 
 | Chain | Native | Decimals | Address format | Token support | Default endpoints |
 | --- | --- | --- | --- | --- | --- |
-| Ethereum | ETH | 18 | `0x` + 40 hex | ERC-20 | PublicNode, dRPC, 1RPC, LlamaRPC |
+| Ethereum | ETH | 18 | `0x` + 40 hex | ERC-20 + Uniswap V3/V4 LP NFTs | PublicNode, dRPC, 1RPC, LlamaRPC |
 | Solana | SOL | 9 | 32-byte base58 | SPL token mints | Solana mainnet-beta, PublicNode |
 | Bitcoin | BTC | 8 | Base58Check or bech32/bech32m | Native only | Blockstream, mempool.space |
 | Nervos | CKB | 8 | CKB bech32/bech32m | Native only | mainnet.ckb.dev, mainnet.ckbapp.dev |
@@ -20,6 +20,56 @@ AssetX tracks six chains. Each address belongs to exactly one chain, and each ch
 - Batch order is preserved by JSON-RPC ids. The first endpoint that returns a usable native result wins.
 - If one ERC-20 call fails (bad contract or no code), that token is saved as zero with a warning, while other balances are still persisted.
 - Address validation accepts `0x` + 40 hex. Mixed-case EIP-55 checksums are accepted; addresses are normalized to lowercase.
+
+### Uniswap LP positions (V3 and V4 NFTs)
+
+Uniswap V3 liquidity positions are ERC-721 tokens owned by the canonical `NonfungiblePositionManager` at `0xC36442b4a4522E871399CD717aBDD847Ab11FE88`. Uniswap V4 positions are ERC-721 tokens in the singleton `PositionManager` at `0xbd216513D74c8cf14cf4747E6AaA6420FF64ee9e`. AssetX treats both as a separate, non-fungible holding type; they are not mixed into the ERC-20 balance list. Every saved row records its `protocol`: `uniswap-v3` or `uniswap-v4`.
+
+V3 discovery and decoding, in one scan per wallet:
+
+1. `balanceOf(owner)` on the position manager, then `tokenOfOwnerByIndex(owner, i)` for each index (ERC-721 Enumerable). Duplicate token ids are dropped.
+2. `positions(tokenId)` returns the token pair, fee tier, tick range, and liquidity.
+3. `factory()` on the position manager, then `getPool(token0, token1, fee)`, then the pool's `slot0()` for the current `sqrtPriceX96` and tick.
+4. `symbol()` and `decimals()` on both underlying ERC-20s.
+
+V4 discovery and decoding:
+
+- The V4 position manager is ERC-721 but **not ERC-721 Enumerable**, so `tokenOfOwnerByIndex` is not available. AssetX asks a public Blockscout NFT index (`GET /api/v2/addresses/{address}/nft?type=ERC-721`) for the ERC-721 ids owned by the wallet and filters them to the V4 position manager. This is the only indexer dependency; the base URL is configurable and can be a self-hosted instance.
+- `ownerOf(tokenId)` is checked on-chain so an id that the index has not yet caught up with after a transfer is discarded.
+- `getPoolAndPositionInfo(tokenId)` returns the full `PoolKey` (currency0, currency1, fee, tickSpacing, hooks) and the packed `PositionInfo` (tickLower, tickUpper, poolId prefix).
+- `getPositionLiquidity(tokenId)` returns the current liquidity.
+- `poolId = keccak256(abi.encode(PoolKey))`, then `StateView.getSlot0(poolId)` returns the current `sqrtPriceX96`, tick, protocol fee, and dynamic `lpFee`.
+- Native ETH is the zero address in a `PoolKey`; it is priced from the chain's native token in the registry. ERC-20 currencies are priced by contract address.
+- V4 positions can use a dynamic fee. The displayed fee is the current `lpFee` from `slot0`; a static pool reports its configured fee.
+
+Underlying amounts for both versions use Uniswap's concentrated-liquidity relations (whitepaper 6.29/6.30). A position holds only token0 below the range, only token1 above it, and a mix inside it. `in_range` is `tickLower <= currentTick < tickUpper`.
+
+Valuation:
+
+- Each side is converted to human units with its own decimals and priced through DefiLlama (`ethereum:0x...`) with a CoinGecko `simple/token_price` fallback. Native ETH uses the native token price. Underlying tokens are not added to the curated token registry.
+- A position with a positive, unpriced side is saved with `value_usd = null`; the account total is then marked `partial`.
+- `contract_prices` caches address-based prices for the same short TTL as registry prices.
+
+Limits and scope:
+
+- The scan is capped at `ASSETX_ETHEREUM_LP_MAX_POSITIONS` positions per wallet (default 30), shared by V3 and V4. Additional positions produce a warning.
+- Uncollected fees (`tokensOwed`) are not included in the position value.
+- Uniswap V2 LP tokens are ERC-20s, not NFTs, and are not detected automatically. Generic NFTs and positions staked in other contracts are out of scope: a staked position is held by the staking contract, not by the wallet, so an owner scan cannot see it.
+- If a V3 scan fails on every endpoint, the fungible balances are still saved, the refresh records a warning, and previously saved V3 positions are kept. V4 completeness is tracked independently, so a V4 indexer outage never deletes saved V3 positions and vice versa.
+- If the Blockscout index is unavailable, V4 discovery is skipped with a warning and saved V4 positions are kept. Discovery is retried after a short cooldown instead of on every Ethereum refresh.
+- If a scan is partial (some position or metadata reads fail), that protocol's saved position set is also kept. Only a fully complete scan replaces it.
+
+Configuration:
+
+```dotenv
+ASSETX_ETHEREUM_LP_POSITIONS_ENABLED=true
+# Optional: comma-separated Uniswap V3-compatible position managers.
+ASSETX_ETHEREUM_LP_POSITION_MANAGERS=
+ASSETX_ETHEREUM_LP_MAX_POSITIONS=30
+ASSETX_ETHEREUM_LP_V4_ENABLED=true
+# Optional: comma-separated Blockscout-compatible API hosts.
+ASSETX_ETHEREUM_LP_BLOCKSCOUT_APIS=https://eth.blockscout.com
+```
 
 Default endpoints, in order:
 
@@ -165,6 +215,8 @@ Order matters: the first successful endpoint answers. Public endpoints are share
 - Rate limits change without notice.
 - Some endpoints are geo-restricted.
 - Indexed Solana methods may require an API token.
+- Uniswap V3 discovery adds up to seven JSON-RPC round trips per Ethereum wallet. Wallets without positions stop after the first round trip.
+- Uniswap V4 discovery adds one Blockscout request plus three to four RPC rounds. Blockscout indexes by block and can lag the chain head by a short time.
 - Cosmos REST responses may paginate.
 - Hiro Stacks API requests are rate limited per IP; a 429 triggers failover to the next host.
 - The Hiro balances response includes every SIP-010 asset the wallet holds, so wallets with many spam tokens can return a large payload.

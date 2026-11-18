@@ -41,6 +41,17 @@ class Settings(BaseSettings):
     cosmos_apis: str = ""
     stacks_apis: str = ""
 
+    # Uniswap V3 LP NFTs on Ethereum. Detection reads the canonical
+    # NonfungiblePositionManager unless an explicit contract list is supplied.
+    ethereum_lp_positions_enabled: bool = True
+    ethereum_lp_position_managers: str = ""
+    ethereum_lp_max_positions: int = 30
+
+    # Uniswap V4 positions. The V4 position manager is not ERC-721 Enumerable,
+    # so token ids come from a Blockscout NFT index before on-chain reads.
+    ethereum_lp_v4_enabled: bool = True
+    ethereum_lp_blockscout_apis: str = ""
+
     start_worker: bool = True
     log_level: str = "INFO"
 

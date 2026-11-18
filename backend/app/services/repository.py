@@ -97,6 +97,13 @@ def balances_for_address(db: Database, address_id: int) -> list:
     )
 
 
+def positions_for_address(db: Database, address_id: int) -> list:
+    return db.fetchall(
+        "SELECT * FROM nft_positions WHERE address_id = ? ORDER BY id",
+        (address_id,),
+    )
+
+
 def _balance_dict(row) -> dict[str, Any]:
     balance = amount_from_raw(row["raw_balance"], row["decimals"])
     value = Decimal(row["value_usd"]) if row["value_usd"] is not None else None
@@ -117,6 +124,55 @@ def _balance_dict(row) -> dict[str, Any]:
     }
 
 
+def _nft_position_dict(row) -> dict[str, Any]:
+    amount0 = amount_from_raw(row["token0_amount_raw"], row["token0_decimals"])
+    amount1 = amount_from_raw(row["token1_amount_raw"], row["token1_decimals"])
+    price0 = Decimal(row["token0_price_usd"]) if row["token0_price_usd"] is not None else None
+    price1 = Decimal(row["token1_price_usd"]) if row["token1_price_usd"] is not None else None
+    value = Decimal(row["value_usd"]) if row["value_usd"] is not None else None
+    return {
+        "id": row["id"],
+        "protocol": row["protocol"],
+        "collection": row["collection"],
+        "contract_address": row["contract_address"],
+        "token_id": row["token_id"],
+        "pool_address": row["pool_address"],
+        "fee_tier": row["fee_tier"],
+        "tick_lower": row["tick_lower"],
+        "tick_upper": row["tick_upper"],
+        "in_range": bool(row["in_range"]),
+        "liquidity": row["liquidity"],
+        "token0": {
+            "address": row["token0_address"],
+            "symbol": row["token0_symbol"],
+            "decimals": row["token0_decimals"],
+            "amount": decimal_to_str(amount0),
+            "price_usd": format_price(price0) if price0 is not None else None,
+            "value_usd": format_usd(amount0 * price0) if price0 is not None else None,
+        },
+        "token1": {
+            "address": row["token1_address"],
+            "symbol": row["token1_symbol"],
+            "decimals": row["token1_decimals"],
+            "amount": decimal_to_str(amount1),
+            "price_usd": format_price(price1) if price1 is not None else None,
+            "value_usd": format_usd(amount1 * price1) if price1 is not None else None,
+        },
+        "value_usd": format_usd(value),
+        "updated_at": row["updated_at"],
+    }
+
+
+def _position_sort_key(position: dict[str, Any]) -> tuple:
+    value = Decimal(position["value_usd"]) if position["value_usd"] is not None else Decimal(0)
+    token_id = position["token_id"]
+    return (
+        position["value_usd"] is not None,
+        value,
+        int(token_id) if str(token_id).isdigit() else 0,
+    )
+
+
 def serialize_address(db: Database, row, limit: int | None = 3) -> dict[str, Any]:
     chain = row["chain"]
     definition = CHAIN_DEFINITIONS.get(chain)
@@ -131,6 +187,12 @@ def serialize_address(db: Database, row, limit: int | None = 3) -> dict[str, Any
     for token in all_tokens:
         token["_balance_decimal"] = amount_from_raw(token["raw_balance"], token["decimals"])
         token["_value_decimal"] = Decimal(token["value_usd"]) if token["value_usd"] is not None else None
+
+    positions = [_nft_position_dict(item) for item in positions_for_address(db, row["id"])]
+    positions.sort(key=_position_sort_key, reverse=True)
+    unpriced_positions = [
+        position for position in positions if position["value_usd"] is None
+    ]
 
     positive = [token for token in all_tokens if token["_balance_decimal"] > 0]
     if positive:
@@ -155,6 +217,13 @@ def serialize_address(db: Database, row, limit: int | None = 3) -> dict[str, Any
     total = sum(
         (Decimal(token["value_usd"]) for token in all_tokens if token["value_usd"] is not None),
         Decimal(0),
+    ) + sum(
+        (
+            Decimal(position["value_usd"])
+            for position in positions
+            if position["value_usd"] is not None
+        ),
+        Decimal(0),
     )
     unpriced = [
         token
@@ -163,7 +232,7 @@ def serialize_address(db: Database, row, limit: int | None = 3) -> dict[str, Any
     ]
     if row["last_refreshed_at"] is None:
         total_status = "stale"
-    elif unpriced:
+    elif unpriced or unpriced_positions:
         total_status = "partial"
     else:
         total_status = "complete"
@@ -184,9 +253,12 @@ def serialize_address(db: Database, row, limit: int | None = 3) -> dict[str, Any
         "total_usd": format_usd(total),
         "total_status": total_status,
         "unpriced_token_count": len(unpriced),
+        "unpriced_position_count": len(unpriced_positions),
         "tracked_token_count": len(all_tokens),
         "hidden_token_count": hidden,
+        "position_count": len(positions),
         "tokens": display_tokens,
+        "positions": positions,
         "refresh": (
             {
                 "job_id": job["id"],

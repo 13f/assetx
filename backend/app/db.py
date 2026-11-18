@@ -65,6 +65,44 @@ CREATE TABLE IF NOT EXISTS prices (
     fetched_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS contract_prices (
+    chain TEXT NOT NULL,
+    contract_address TEXT NOT NULL,
+    price_usd TEXT NOT NULL,
+    source TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    PRIMARY KEY (chain, contract_address)
+);
+
+CREATE TABLE IF NOT EXISTS nft_positions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    address_id INTEGER NOT NULL REFERENCES addresses(id) ON DELETE CASCADE,
+    chain TEXT NOT NULL,
+    protocol TEXT NOT NULL,
+    collection TEXT NOT NULL,
+    contract_address TEXT NOT NULL,
+    token_id TEXT NOT NULL,
+    pool_address TEXT,
+    token0_address TEXT NOT NULL,
+    token0_symbol TEXT NOT NULL,
+    token0_decimals INTEGER NOT NULL,
+    token0_amount_raw TEXT NOT NULL,
+    token1_address TEXT NOT NULL,
+    token1_symbol TEXT NOT NULL,
+    token1_decimals INTEGER NOT NULL,
+    token1_amount_raw TEXT NOT NULL,
+    fee_tier INTEGER NOT NULL,
+    tick_lower INTEGER NOT NULL,
+    tick_upper INTEGER NOT NULL,
+    liquidity TEXT NOT NULL,
+    in_range INTEGER NOT NULL DEFAULT 1 CHECK (in_range IN (0, 1)),
+    token0_price_usd TEXT,
+    token1_price_usd TEXT,
+    value_usd TEXT,
+    updated_at TEXT NOT NULL,
+    UNIQUE (address_id, contract_address, token_id)
+);
+
 CREATE TABLE IF NOT EXISTS refresh_jobs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     address_id INTEGER REFERENCES addresses(id) ON DELETE CASCADE,
@@ -88,6 +126,9 @@ CREATE INDEX IF NOT EXISTS idx_refresh_jobs_created
 
 CREATE INDEX IF NOT EXISTS idx_balances_address
     ON balances(address_id);
+
+CREATE INDEX IF NOT EXISTS idx_nft_positions_address
+    ON nft_positions(address_id);
 
 CREATE INDEX IF NOT EXISTS idx_token_networks_chain
     ON token_networks(chain);

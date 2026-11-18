@@ -11,9 +11,37 @@ export interface ChainMeta {
   address_hint: string
   supports_tokens: boolean
   token_standard: string | null
+  supports_nft_positions: boolean
   explorer_url: string
   provider_count: number
   accent: string
+}
+
+export interface PositionToken {
+  address: string
+  symbol: string
+  decimals: number
+  amount: string
+  price_usd: string | null
+  value_usd: string | null
+}
+
+export interface LpPosition {
+  id: number
+  protocol: string
+  collection: string
+  contract_address: string
+  token_id: string
+  pool_address: string | null
+  fee_tier: number
+  tick_lower: number
+  tick_upper: number
+  in_range: boolean
+  liquidity: string
+  token0: PositionToken
+  token1: PositionToken
+  value_usd: string | null
+  updated_at: string
 }
 
 export interface TokenBalance {
@@ -54,9 +82,12 @@ export interface Account {
   total_usd: string
   total_status: 'stale' | 'partial' | 'complete'
   unpriced_token_count: number
+  unpriced_position_count: number
   tracked_token_count: number
   hidden_token_count: number
+  position_count: number
   tokens: TokenBalance[]
+  positions: LpPosition[]
   refresh: RefreshState | null
 }
 

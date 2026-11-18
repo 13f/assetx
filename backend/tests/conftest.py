@@ -11,8 +11,15 @@ from fastapi.testclient import TestClient
 from app.chains.base import FetchResult, TokenNetwork
 from app.config import Settings
 from app.main import create_app
-from app.services.prices import PriceFetchResult
+from app.services.prices import ContractPriceResult, PriceFetchResult
 from app.utils.time import utcnow_iso
+
+# Deterministic contract prices for LP-position tests.
+FAKE_CONTRACT_PRICES = {
+    "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": Decimal("2000"),  # WETH
+    "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": Decimal("1"),  # USDC
+    "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599": Decimal("60000"),  # WBTC
+}
 
 
 @pytest.fixture
@@ -59,6 +66,18 @@ class FakePriceService:
         for row in rows:
             prices[row["id"]] = Decimal("1") if row["symbol"] in {"USDT", "USDC"} else Decimal("2000")
         return PriceFetchResult(prices=prices, source="test", fetched_at=utcnow_iso())
+
+    async def get_contract_prices(self, chain: str, contracts: list[str]) -> ContractPriceResult:
+        prices = {
+            contract.lower(): FAKE_CONTRACT_PRICES[contract.lower()]
+            for contract in contracts
+            if contract.lower() in FAKE_CONTRACT_PRICES
+        }
+        return ContractPriceResult(
+            prices=prices,
+            source="test",
+            fetched_at=utcnow_iso(),
+        )
 
 
 @pytest.fixture

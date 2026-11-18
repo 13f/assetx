@@ -14,9 +14,10 @@ Supported chains: **Ethereum, Solana, Bitcoin, Nervos, Cosmos, Stacks**.
 - **Sequential refresh queue** with a 3 second gap between address starts to avoid public endpoint rate limits.
 - **Public RPC failover**: every chain has multiple endpoints; the next endpoint is tried when one fails.
 - **Token registry**: one token can have a different ERC-20 contract, SPL mint, Cosmos bank denom, or SIP-010 asset id on each chain.
+- **Uniswap V3 and V4 LP NFTs on Ethereum**: a wallet refresh also scans the canonical V3 `NonfungiblePositionManager`, discovers V4 position ids through a public Blockscout index, decodes each position's range and liquidity with concentrated-liquidity math, and prices the underlying tokens in USD.
 - **Tags** on addresses, stored lowercase.
 - **Manual price refresh** through DefiLlama with a CoinGecko fallback and a short cache.
-- **SQLite persistence** for addresses, tags, token networks, balances, cached prices, and refresh jobs.
+- **SQLite persistence** for addresses, tags, token networks, balances, LP positions, cached prices, and refresh jobs.
 - No wallet connection and no private keys. AssetX only reads public chain data.
 
 ## Tech stack
@@ -76,6 +77,11 @@ Copy `backend/.env.example` to `backend/.env` to override defaults. Useful setti
 | `ASSETX_PRICE_CACHE_SECONDS` | `15` | Price cache TTL for a batch |
 | `ASSETX_REQUEST_TIMEOUT_SECONDS` | `20` | RPC HTTP timeout |
 | `ASSETX_ETHEREUM_RPCS` | built-in list | Comma-separated RPC override |
+| `ASSETX_ETHEREUM_LP_POSITIONS_ENABLED` | `true` | Scan Ethereum wallets for Uniswap LP NFTs |
+| `ASSETX_ETHEREUM_LP_POSITION_MANAGERS` | built-in list | Comma-separated V3 position-manager override |
+| `ASSETX_ETHEREUM_LP_MAX_POSITIONS` | `30` | Position scan cap per wallet |
+| `ASSETX_ETHEREUM_LP_V4_ENABLED` | `true` | Scan for Uniswap V4 positions |
+| `ASSETX_ETHEREUM_LP_BLOCKSCOUT_APIS` | built-in list | Comma-separated Blockscout API override |
 | `ASSETX_SOLANA_RPCS` | built-in list | Comma-separated RPC override |
 | `ASSETX_BITCOIN_APIS` | built-in list | Comma-separated API override |
 | `ASSETX_NERVOS_RPCS` | built-in list | Comma-separated RPC override |
@@ -91,7 +97,7 @@ cd backend
 ..\.venv\Scripts\python.exe -m pytest -q
 ```
 
-The suite covers address validation (including bech32/bech32m, c32check, and CKB lock decoding), token registry CRUD, queue deduplication, RPC failover, price caching, and the full refresh-to-balance workflow with deterministic fakes.
+The suite covers address validation (including bech32/bech32m, c32check, and CKB lock decoding), token registry CRUD, queue deduplication, RPC failover, Uniswap V3/V4 LP position decoding and concentrated-liquidity math, Keccak-256, price caching, and the full refresh-to-balance workflow with deterministic fakes.
 
 Frontend checks:
 
@@ -111,13 +117,13 @@ bun run build
 
 ## Known scope
 
-- Ethereum: native ETH and ERC-20 balances, no NFTs.
+- Ethereum: native ETH, ERC-20 balances, and Uniswap V3/V4 LP NFT positions. Uniswap V2 LP tokens (ERC-20), generic NFTs, and staked positions held by other contracts are out of scope. V4 token ids are discovered through a public Blockscout NFT index before the position is read on-chain. Uncollected LP fees are not included in the position value.
 - Solana: native SOL and SPL token accounts, no stake accounts.
 - Bitcoin: native BTC only. BRC-20, Runes and inscription indexers are out of scope.
 - Nervos: native CKB only. Generic UDT tracking is out of scope.
 - Cosmos: Cosmos Hub native ATOM and Cosmos SDK bank denoms. Staked balances are not included.
 - Stacks: native STX and SIP-010 fungible tokens, including seeded sBTC. NFTs and contract-principal accounts are out of scope. Stacked STX that remains in the wallet is included in the on-chain balance.
-- Prices come from third-party public APIs. Tokens without a CoinGecko id are tracked but shown as unpriced.
+- Prices come from third-party public APIs. Tokens without a CoinGecko id are tracked but shown as unpriced. LP underlying tokens are priced by contract address, so an obscure token without a DefiLlama or CoinGecko price makes the position unpriced.
 - The refresh worker is in-process. A running job is marked failed on restart; queued jobs are requeued.
 
 ## License

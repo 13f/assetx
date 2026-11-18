@@ -12,6 +12,12 @@ from app.utils.time import iso_to_datetime, utcnow, utcnow_iso
 
 DEFILLAMA_URL = "https://coins.llama.fi/prices/current/"
 COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price"
+COINGECKO_TOKEN_PRICE_URL = "https://api.coingecko.com/api/v3/simple/token_price/{platform}"
+
+# DefiLlama and CoinGecko both accept an EVM chain slug when pricing by
+# contract address. Only Ethereum is wired today because LP positions are
+# Ethereum-only.
+CONTRACT_PRICE_CHAINS = {"ethereum": "ethereum"}
 
 
 @dataclass
@@ -20,6 +26,20 @@ class PriceFetchResult:
     source: str | None = None
     fetched_at: str | None = None
     warning: str | None = None
+
+
+@dataclass
+class ContractPriceResult:
+    """USD prices for token contracts, keyed by lowercase contract address."""
+
+    prices: dict[str, Decimal] = field(default_factory=dict)
+    source: str | None = None
+    fetched_at: str | None = None
+    warning: str | None = None
+
+
+def short_contract(address: str) -> str:
+    return f"{address[:6]}..{address[-4:]}" if len(address) > 12 else address
 
 
 class PriceService:
@@ -58,6 +78,139 @@ class PriceService:
             if oldest is None or row["fetched_at"] < oldest:
                 oldest = row["fetched_at"]
         return PriceFetchResult(prices=prices, source=source, fetched_at=oldest)
+
+    @staticmethod
+    def _price_chain(chain: str) -> str | None:
+        return CONTRACT_PRICE_CHAINS.get(chain)
+
+    @classmethod
+    def normalize_contracts(cls, chain: str, contracts: list[str]) -> list[str]:
+        if cls._price_chain(chain) is None:
+            return []
+        return sorted({contract.strip().lower() for contract in contracts if contract.strip()})
+
+    def _cached_contracts(
+        self, chain: str, contracts: list[str], allow_stale: bool = False
+    ) -> ContractPriceResult:
+        if not contracts:
+            return ContractPriceResult()
+        placeholders = ",".join("?" for _ in contracts)
+        rows = self.db.fetchall(
+            f"""
+            SELECT contract_address, price_usd, source, fetched_at
+            FROM contract_prices
+            WHERE chain = ? AND contract_address IN ({placeholders})
+            """,
+            (chain, *contracts),
+        )
+        cutoff = utcnow() - timedelta(seconds=self.cache_seconds)
+        prices: dict[str, Decimal] = {}
+        oldest: str | None = None
+        source: str | None = None
+        for row in rows:
+            fetched = iso_to_datetime(row["fetched_at"])
+            if not allow_stale and (fetched is None or fetched < cutoff):
+                continue
+            prices[row["contract_address"].lower()] = Decimal(row["price_usd"])
+            source = source or row["source"]
+            if oldest is None or row["fetched_at"] < oldest:
+                oldest = row["fetched_at"]
+        return ContractPriceResult(prices=prices, source=source, fetched_at=oldest)
+
+    async def _defillama_contracts(
+        self, chain: str, contracts: list[str]
+    ) -> ContractPriceResult:
+        slug = self._price_chain(chain)
+        if slug is None:
+            return ContractPriceResult(warning=f"No contract price provider for {chain}")
+        ids = [f"{slug}:{contract}" for contract in contracts]
+        response = await self.client.get(DEFILLAMA_URL + ",".join(ids))
+        response.raise_for_status()
+        data = response.json()
+        coins = data.get("coins") if isinstance(data, dict) else None
+        if not isinstance(coins, dict):
+            raise ValueError("price provider returned no coins object")
+        lookup = {str(key).lower(): value for key, value in coins.items()}
+        prices: dict[str, Decimal] = {}
+        for contract in contracts:
+            item = lookup.get(f"{slug}:{contract}")
+            if isinstance(item, dict) and item.get("price") is not None:
+                prices[contract] = Decimal(str(item["price"]))
+        if not prices:
+            raise ValueError("price provider returned no usable contract prices")
+        return ContractPriceResult(
+            prices=prices, source="defillama", fetched_at=utcnow_iso()
+        )
+
+    async def _coingecko_contracts(
+        self, chain: str, contracts: list[str]
+    ) -> ContractPriceResult:
+        platform = self._price_chain(chain)
+        if platform is None:
+            return ContractPriceResult(warning=f"No contract price provider for {chain}")
+        response = await self.client.get(
+            COINGECKO_TOKEN_PRICE_URL.format(platform=platform),
+            params={"contract_addresses": ",".join(contracts), "vs_currencies": "usd"},
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not isinstance(data, dict):
+            raise ValueError("CoinGecko returned no contract price object")
+        lookup = {str(key).lower(): value for key, value in data.items()}
+        prices: dict[str, Decimal] = {}
+        for contract in contracts:
+            item = lookup.get(contract)
+            if isinstance(item, dict) and item.get("usd") is not None:
+                prices[contract] = Decimal(str(item["usd"]))
+        if not prices:
+            raise ValueError("CoinGecko returned no usable contract prices")
+        return ContractPriceResult(
+            prices=prices, source="coingecko", fetched_at=utcnow_iso()
+        )
+
+    async def get_contract_prices(
+        self, chain: str, contracts: list[str]
+    ) -> ContractPriceResult:
+        """Price ERC-20 contracts without registering them in the token registry.
+
+        LP positions hold arbitrary underlying tokens, so pricing by contract
+        address keeps the curated registry clean while still valuing the
+        position. Cache semantics match :meth:`get_prices`.
+        """
+        normalized = self.normalize_contracts(chain, contracts)
+        if not normalized:
+            if self._price_chain(chain) is None:
+                return ContractPriceResult(
+                    warning=f"LP position pricing is not supported on {chain}"
+                )
+            return ContractPriceResult()
+        cached = self._cached_contracts(chain, normalized)
+        if len(cached.prices) == len(normalized):
+            return cached
+
+        errors: list[str] = []
+        for provider in (self._defillama_contracts, self._coingecko_contracts):
+            try:
+                result = await provider(chain, normalized)
+                missing = [
+                    contract for contract in normalized if contract not in result.prices
+                ]
+                if missing:
+                    note = "No price for " + ", ".join(
+                        short_contract(contract) for contract in missing[:5]
+                    )
+                    result.warning = f"{result.warning}; {note}" if result.warning else note
+                return result
+            except Exception as exc:  # noqa: BLE001 - provider fallback
+                errors.append(f"{provider.__name__.lstrip('_')}: {str(exc)[:140]}")
+
+        cached = self._cached_contracts(chain, normalized, allow_stale=True)
+        if cached.prices:
+            cached.warning = "Contract price refresh failed; using cached prices"
+            return cached
+        return ContractPriceResult(
+            warning="Contract price refresh failed: " + "; ".join(errors[:2])
+        )
 
     async def _defillama(self, tokens: list[Any]) -> PriceFetchResult:
         ids = [f"coingecko:{row['coingecko_id']}" for row in tokens if row["coingecko_id"]]
